@@ -30,31 +30,35 @@ describe("clawhub skills", () => {
     delete process.env.CLAWDHUB_DISABLE_TELEMETRY;
   });
 
-  it("resolves hosted skill icons against the configured ClawHub origin", async () => {
+  it("resolves search icons against a path-mounted ClawHub registry", async () => {
+    let requestedUrl = "";
     await expect(
       searchClawHubSkills({
         query: "playwright",
-        baseUrl: "https://registry.example",
-        fetchImpl: async () =>
-          new Response(
+        baseUrl: "https://registry.example/clawhub",
+        fetchImpl: async (input) => {
+          requestedUrl = input instanceof Request ? input.url : String(input);
+          return new Response(
             JSON.stringify({
               results: [
                 {
                   score: 1,
                   slug: "playwright-interactive",
                   displayName: "Playwright Interactive",
-                  icon: `/api/v1/skill-icons/${"a".repeat(64)}`,
+                  icon: `/clawhub/api/v1/skill-icons/${"a".repeat(64)}`,
                 },
               ],
             }),
             { headers: { "content-type": "application/json" } },
-          ),
+          );
+        },
       }),
     ).resolves.toMatchObject([
       {
-        icon: `https://registry.example/api/v1/skill-icons/${"a".repeat(64)}`,
+        icon: `https://registry.example/clawhub/api/v1/skill-icons/${"a".repeat(64)}`,
       },
     ]);
+    expect(new URL(requestedUrl).pathname).toBe("/clawhub/api/v1/search");
   });
 
   it("rejects skill icons outside the configured hosted-icon route", async () => {
@@ -195,6 +199,7 @@ describe("clawhub skills", () => {
       fetchClawHubSkillDetail({
         slug: "weather",
         ownerHandle: "demo-owner",
+        baseUrl: "https://registry.example/clawhub",
         fetchImpl: async (input) => {
           requestedUrl = input instanceof Request ? input.url : String(input);
           return new Response(
@@ -202,7 +207,7 @@ describe("clawhub skills", () => {
               skill: {
                 slug: "weather",
                 displayName: "Weather",
-                icon: `/api/v1/skill-icons/${"a".repeat(64)}`,
+                icon: `/clawhub/api/v1/skill-icons/${"a".repeat(64)}`,
                 createdAt: 1,
                 updatedAt: 2,
               },
@@ -214,12 +219,12 @@ describe("clawhub skills", () => {
     ).resolves.toMatchObject({
       skill: {
         slug: "weather",
-        icon: `https://clawhub.ai/api/v1/skill-icons/${"a".repeat(64)}`,
+        icon: `https://registry.example/clawhub/api/v1/skill-icons/${"a".repeat(64)}`,
       },
     });
 
     const url = new URL(requestedUrl);
-    expect(url.pathname).toBe("/api/v1/skills/weather");
+    expect(url.pathname).toBe("/clawhub/api/v1/skills/weather");
     expect(url.searchParams.get("ownerHandle")).toBe("demo-owner");
   });
 

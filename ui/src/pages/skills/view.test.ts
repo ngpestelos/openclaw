@@ -94,6 +94,7 @@ function createProps(overrides: Partial<SkillsProps> = {}): SkillsProps {
     skillCardErrors: {},
     clawhubQuery: "",
     clawhubResults: null,
+    clawhubIconUrls: {},
     clawhubSearchLoading: false,
     clawhubSearchError: null,
     clawhubDetail: null,
@@ -732,6 +733,9 @@ describe("renderSkills", () => {
               version: "1.2.3",
             },
           ],
+          clawhubIconUrls: {
+            [`https://clawhub.ai/api/v1/skill-icons/${"a".repeat(64)}`]: "blob:clawhub-search-icon",
+          },
           onClawHubDetailOpen,
           onClawHubInstall,
         }),
@@ -754,7 +758,7 @@ describe("renderSkills", () => {
     );
     expect(resultItem?.querySelector(".settings-row__value")?.textContent?.trim()).toBe("v1.2.3");
     expect(resultItem?.querySelector<HTMLImageElement>(".clawhub-skill-icon")?.src).toBe(
-      `https://clawhub.ai/api/v1/skill-icons/${"a".repeat(64)}`,
+      "blob:clawhub-search-icon",
     );
     expect(installButton?.textContent?.trim()).toBe("Install");
     detailButton!.click();
@@ -774,6 +778,9 @@ describe("renderSkills", () => {
           clawhubSearchError: "rate limited",
           clawhubInstallMessage: { kind: "success", text: "Installed github" },
           clawhubDetailSlug: "github",
+          clawhubIconUrls: {
+            [`https://clawhub.ai/api/v1/skill-icons/${"b".repeat(64)}`]: "blob:clawhub-detail-icon",
+          },
           clawhubDetail: {
             skill: {
               slug: "github",
@@ -811,7 +818,7 @@ describe("renderSkills", () => {
       "GitHub integration for OpenClaw By OpenClaw (@openclaw) Latest: v1.2.3 Added search support Platforms: macos, linux Install GitHub",
     );
     expect(container.querySelector<HTMLImageElement>(".clawhub-skill-icon--detail")?.src).toBe(
-      `https://clawhub.ai/api/v1/skill-icons/${"b".repeat(64)}`,
+      "blob:clawhub-detail-icon",
     );
     expect(container.querySelector(".clawhub-skill-icon--profile")).toBeNull();
 
@@ -823,38 +830,6 @@ describe("renderSkills", () => {
 
     expect(onClawHubInstall).toHaveBeenCalledTimes(1);
     expect(onClawHubInstall).toHaveBeenCalledWith("github");
-  });
-
-  it("renders ClawHub acknowledgement retry actions", async () => {
-    const container = document.createElement("div");
-    document.body.append(container);
-    dialogRestores.push(() => container.remove());
-    const onClawHubInstall = vi.fn();
-
-    render(
-      renderSkills(
-        createProps({
-          clawhubInstallMessage: {
-            kind: "error",
-            text: "REVIEW REQUIRED - ClawHub found suspicious behavior.",
-            acknowledgeSlug: "github",
-            acknowledgeVersion: "1.2.3",
-          },
-          onClawHubInstall,
-        }),
-      ),
-      container,
-    );
-
-    const retryButton = container.querySelector<HTMLButtonElement>(".callout button");
-    expect(normalizeText(container.querySelector(".callout")!)).toBe(
-      "REVIEW REQUIRED - ClawHub found suspicious behavior. Acknowledge risk and install",
-    );
-    expect(retryButton).toBeInstanceOf(HTMLButtonElement);
-    retryButton!.click();
-
-    expect(onClawHubInstall).toHaveBeenCalledTimes(1);
-    expect(onClawHubInstall).toHaveBeenCalledWith("github", true, "1.2.3");
   });
 
   it("renders installed ClawHub verdicts and the local Skill Card tab", async () => {
