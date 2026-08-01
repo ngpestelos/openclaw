@@ -1,0 +1,51 @@
+name: Sync upstream openclaw/openclaw
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sync-upstream-openclaw
+  cancel-in-progress: true
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Save workflow definition
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/workflows/sync-upstream.yml
+          sparse-checkout-cone-mode: false
+          path: workflow-src
+      - name: Clone upstream (bare)
+        run: git clone --bare https://github.com/openclaw/openclaw.git src.git
+      - name: Push heads and tags
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd src.git
+          DST="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+          git push --force "$DST" "refs/heads/*:refs/heads/*"
+          git push --force "$DST" "refs/tags/*:refs/tags/*" || true
+      - name: Re-apply workflow on main
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch main \
+            "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" dest
+          cd dest
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p .github/workflows
+          cp ../workflow-src/.github/workflows/sync-upstream.yml \
+            .github/workflows/sync-upstream.yml
+          if git status --porcelain | grep -q .; then
+            git add .github/workflows/sync-upstream.yml
+            git commit -m "ci: restore sync-upstream workflow after mirror"
+            git push origin HEAD:main
+          fi
