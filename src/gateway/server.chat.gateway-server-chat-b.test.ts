@@ -1296,6 +1296,7 @@ describe("gateway server chat", () => {
             compat: { supportedReasoningEfforts: ["low"] },
             params: { apiKey: "private-route-token" },
           };
+          const pluginMetadata = resolvePluginMetadataSnapshot({ config, env: process.env });
           const catalogSnapshot = {
             entries: [subscriptionRoute],
             routeVariants: [subscriptionRoute, platformRoute],
@@ -1317,6 +1318,13 @@ describe("gateway server chat", () => {
               }),
             ],
           ]);
+          const requirePreparedAuthStore = (agentId: string) => {
+            const authStore = preparedAuthStoreByAgentId.get(agentId);
+            if (!authStore) {
+              throw new Error(`expected prepared auth store for agent "${agentId}"`);
+            }
+            return authStore;
+          };
           const responses: Array<{ ok: boolean; payload?: unknown; error?: unknown }> = [];
           const { buildModelsListResult, createGatewayAgentModelCatalogProjector } =
             await import("./server-methods/models-list-result.js");
@@ -1351,7 +1359,8 @@ describe("gateway server chat", () => {
               cfg: config,
               agentId,
               snapshot: catalogSnapshot,
-              preparedAuthStore: preparedAuthStoreByAgentId.get(agentId),
+              metadataSnapshot: pluginMetadata,
+              preparedAuthStore: requirePreparedAuthStore(agentId),
               ...(profileId ? { preferredProfileId: profileId } : {}),
               ...(profileId && (profileSource === "user" || legacyUserProfile)
                 ? { lockedProfileId: profileId }
@@ -1412,7 +1421,6 @@ describe("gateway server chat", () => {
           const persistedConfig = getRuntimeConfig();
           // Direct handlers bypass Gateway startup, so publish its process-lifecycle handoff once.
           // Otherwise every route projector rediscovers the full plugin metadata graph.
-          const pluginMetadata = resolvePluginMetadataSnapshot({ config, env: process.env });
           releasePluginMetadata = installTemporaryCurrentPluginMetadataSnapshot(pluginMetadata, {
             config,
             compatibleConfigs: [persistedConfig],
@@ -1427,6 +1435,8 @@ describe("gateway server chat", () => {
             cfg: persistedConfig,
             agentId: "work",
             snapshot: catalogSnapshot,
+            metadataSnapshot: pluginMetadata,
+            preparedAuthStore: requirePreparedAuthStore("work"),
             preferredProfileId: "openai:expired",
           }).evaluateEntry(subscriptionRoute, catalogSnapshot.routeVariants);
           expect(expiredPreferenceEvaluation).toMatchObject({
