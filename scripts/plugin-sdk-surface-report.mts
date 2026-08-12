@@ -275,7 +275,8 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       // +2: narrow channel agent-run terminal reader and outcome contract.
       // +5: narrow string, record, and error coercion helpers.
       // +1: normalized Gateway public origin resolver for plugin-generated links.
-      4879,
+      // +1: host-minted channel participant admission evidence for plugin ingress.
+      4880,
       env,
     ),
     publicFunctionExports: readPluginSdkSurfaceBudgetEnv(
@@ -342,7 +343,8 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       // +1: narrow channel agent-run terminal reader.
       // +5: narrow string, record, and error coercion helpers.
       // +1: normalized Gateway public origin resolver for plugin-generated links.
-      2932,
+      // +1: host-minted channel participant admission evidence for plugin ingress.
+      2933,
       env,
     ),
     publicDeprecatedExports: readPluginSdkSurfaceBudgetEnv(
