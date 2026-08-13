@@ -15,25 +15,28 @@ import { canCallGatewayMethod, isGatewayMethodAdvertised } from "../../lib/gatew
 import type { BrowserTarget, DraftNode } from "./discovery.ts";
 import type { DraftGatewayState } from "./draft-gateway-state.ts";
 import { folderDisplayName, isAbsolutePath, isKnownWorkspacePath } from "./path.ts";
-import { projectCloneInput } from "./place-picker.ts";
+import { projectCloneInput, type DraftRemoteProject } from "./place-picker.ts";
 import { recentPlaces, type RecentPlaceSource } from "./recent-places.ts";
 
 const PROJECT_SEARCH_DEBOUNCE_MS = 300;
 
 type DraftPlaceBrowserSnapshot = Readonly<{
   context: ApplicationContext | undefined;
-  projectId: string;
   nodes: readonly DraftNode[];
   folder: string;
   execNode: string;
   isAdmin: boolean;
 }>;
 
+type DraftProjectSelection =
+  | { kind: "local"; id: string }
+  | { kind: "remote"; project: DraftRemoteProject }
+  | null;
+
 type DraftPlaceBrowserCallbacks = {
   requestUpdate: () => void;
   onProjectMissing: () => void;
   onSelectProject: (projectId: string) => void;
-  onApplyFolder: (folder: string, execNode: string, gatewayApproved: boolean) => void;
   onApprovedListing: (listing: FsListDirResult) => void;
   querySelector: (selector: string) => Element | null;
   activeElement: () => Element | null;
@@ -43,6 +46,7 @@ type DraftPlaceBrowserCallbacks = {
 export class DraftPlaceBrowser {
   private projectsValue: ProjectRecord[] = [];
   private projectRecentsValue: ProjectRecent[] | undefined;
+  private projectSelection: DraftProjectSelection = null;
   private projectQueryValue = "";
   private debouncedProjectQuery = "";
   private browserLoadingValue = false;
@@ -89,10 +93,7 @@ export class DraftPlaceBrowser {
         const projects = result.projects ?? [];
         this.projectsValue = projects;
         this.projectRecentsValue = result.recents;
-        if (
-          this.read().projectId &&
-          !projects.some((project) => project.id === this.read().projectId)
-        ) {
+        if (this.projectId && !projects.some((project) => project.id === this.projectId)) {
           this.callbacks.onProjectMissing();
         }
         this.callbacks.requestUpdate();
@@ -137,6 +138,14 @@ export class DraftPlaceBrowser {
 
   get projectRecents(): readonly ProjectRecent[] | undefined {
     return this.projectRecentsValue;
+  }
+
+  get projectId(): string {
+    return this.projectSelection?.kind === "local" ? this.projectSelection.id : "";
+  }
+
+  get remoteProject(): DraftRemoteProject | null {
+    return this.projectSelection?.kind === "remote" ? this.projectSelection.project : null;
   }
 
   get projectQuery(): string {
@@ -221,8 +230,23 @@ export class DraftPlaceBrowser {
     ]);
   }
 
-  selectedProject(projectId: string): ProjectRecord | undefined {
-    return this.projectsValue.find((project) => project.id === projectId);
+  selectedProject(): ProjectRecord | undefined {
+    return this.projectsValue.find((project) => project.id === this.projectId);
+  }
+
+  selectProject(selection: Exclude<DraftProjectSelection, null>) {
+    this.projectSelection = selection;
+  }
+
+  recordRemoteProjectId(cloneUrl: string, projectId: string) {
+    const project = this.remoteProject;
+    if (project?.cloneUrl === cloneUrl) {
+      this.projectSelection = { kind: "remote", project: { ...project, projectId } };
+    }
+  }
+
+  clearProjectSelection() {
+    this.projectSelection = null;
   }
 
   resolveProjectRecents(params: {
@@ -303,6 +327,7 @@ export class DraftPlaceBrowser {
   resetProjects() {
     this.projectsValue = [];
     this.projectRecentsValue = undefined;
+    this.clearProjectSelection();
     this.resetProjectSearch();
   }
 

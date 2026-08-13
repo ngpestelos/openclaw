@@ -154,6 +154,7 @@ export class DraftSubmissionFlow {
       projectId?: string;
     } = {},
   ): Record<string, unknown> {
+    const project = this.place.browser;
     return assembleDraftSessionCreateParams({
       agentId: this.place.agentId,
       message: options.message ?? "",
@@ -161,7 +162,7 @@ export class DraftSubmissionFlow {
       thinkingLevel: this.place.modelControl.thinkingLevel,
       visibility: options.visibility ?? this.visibilityValue,
       attachments: options.attachments,
-      projectId: options.projectId ?? this.place.remoteProject?.projectId ?? this.place.projectId,
+      projectId: options.projectId ?? project.remoteProject?.projectId ?? project.projectId,
       worktree: this.place.worktree,
       baseRef: this.place.baseRef,
       worktreeName: this.place.worktreeName,
@@ -178,7 +179,8 @@ export class DraftSubmissionFlow {
   ): SessionMethodAccess {
     const gateway = this.read().context?.gateway.snapshot;
     const pendingCloud = Boolean(this.pendingCloud.sessionKey);
-    if (!pendingCloud && this.place.remoteProject && !this.place.remoteProject.projectId) {
+    const remoteProject = this.place.browser.remoteProject;
+    if (!pendingCloud && remoteProject && !remoteProject.projectId) {
       return readSessionMethodAccess(gateway, {
         method: "projects.add",
         requiredScope: "operator.write",
@@ -423,8 +425,8 @@ export class DraftSubmissionFlow {
     this.callbacks.closeTransientUi();
     this.callbacks.requestUpdate();
     try {
-      const remoteProject = pendingCloud ? null : this.place.remoteProject;
-      let projectId = this.place.projectId || remoteProject?.projectId;
+      const remoteProject = pendingCloud ? null : this.place.browser.remoteProject;
+      let projectId = this.place.browser.projectId || remoteProject?.projectId;
       if (remoteProject && !projectId) {
         const project = await submissionClient.request<ProjectsAddResult>(
           "projects.add",
@@ -435,7 +437,7 @@ export class DraftSubmissionFlow {
           return;
         }
         projectId = project.id;
-        this.place.recordRemoteProjectId(remoteProject.cloneUrl, project.id);
+        this.place.browser.recordRemoteProjectId(remoteProject.cloneUrl, project.id);
       }
       const cloudProfileId = this.cloudProfileForSubmission();
       const draftRetired = this.visibilityValue === "draft" && !this.canStartAsDraft();

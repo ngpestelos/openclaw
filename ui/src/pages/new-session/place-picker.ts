@@ -19,20 +19,10 @@ import type {
   DraftEnvironment,
   DraftNode,
 } from "./discovery.ts";
-import { folderDisplayName } from "./path.ts";
+import { folderDisplayName, parentFolderDisplayName } from "./path.ts";
 import { renderPlaceBrowser } from "./place-browser.ts";
 import { disambiguate, isPhoneFamily, nodeTooltip } from "./place-labels.ts";
 import { resolvePlacePickerSections } from "./place-picker-sections.ts";
-
-function parentFolderDisplayName(path: string): string | undefined {
-  const trimmed = path.replace(/[\\/]+$/u, "");
-  const separator = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
-  if (separator < 0) {
-    return undefined;
-  }
-  const parent = separator === 0 ? trimmed.slice(0, 1) : trimmed.slice(0, separator);
-  return folderDisplayName(parent) || undefined;
-}
 
 /** Detects pasted clone URLs; the Gateway remains authoritative for host validation. */
 export function projectCloneInput(value: string): string | null {

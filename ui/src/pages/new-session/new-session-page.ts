@@ -125,7 +125,6 @@ class NewSessionPage extends OpenClawLightDomElement {
       this.gateway,
       () => ({
         context: this.context,
-        projectId: this.place?.projectId ?? "",
         nodes: this.place?.nodes ?? [],
         folder: this.place?.folder ?? "",
         execNode: this.place?.execNode ?? "",
@@ -135,8 +134,6 @@ class NewSessionPage extends OpenClawLightDomElement {
         requestUpdate: () => this.requestUpdate(),
         onProjectMissing: () => this.place.clearProjectSelection(),
         onSelectProject: (projectId) => this.place.selectProjectId(projectId),
-        onApplyFolder: (folder, execNode, gatewayApproved) =>
-          this.place.applyFolder(folder, execNode, gatewayApproved),
         onApprovedListing: (listing) => this.place.recordGatewayApprovedListing(listing),
         querySelector: (selector) => this.querySelector(selector),
         activeElement: () => this.ownerDocument.activeElement,
@@ -434,11 +431,11 @@ class NewSessionPage extends OpenClawLightDomElement {
         "operator.write",
       ),
       remoteProjects: this.browser.projectSearchResult?.projects ?? [],
-      selectedRemoteProject: this.place.remoteProject,
+      selectedRemoteProject: this.place.browser.remoteProject,
       projectSearchCredential: this.browser.projectSearchResult?.credential ?? null,
       projectSearchLoading: this.browser.projectSearchLoading,
       projectSearchError: this.browser.projectSearchError,
-      projectId: this.place.projectId,
+      projectId: this.place.browser.projectId,
       execNodes: this.place.isAdmin() ? execNodes : [],
       environments: this.place.isAdmin() ? this.gateway.environments : [],
       gatewayName: this.gateway.gatewayName,
@@ -486,12 +483,7 @@ class NewSessionPage extends OpenClawLightDomElement {
       onSelectProject: (projectId) => this.place.selectProjectId(projectId),
       onProjectQueryInput: (query) => this.browser.changeProjectQuery(query),
       onSelectRemoteProject: (project) => this.place.selectRemoteProject(project),
-      onApplyFolder: (folder, execNode) =>
-        this.place.applyFolder(
-          folder,
-          execNode,
-          !execNode && this.browser.browserListing?.path === folder,
-        ),
+      onApplyFolder: (folder, execNode) => this.place.applyFolder(folder, execNode),
       onBrowse: (target) => this.browser.selectBrowserTarget(target),
       onBrowserPathDraftChange: (value) => {
         this.browser.browserPathDraft = value;
