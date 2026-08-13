@@ -1,4 +1,7 @@
-import type { SessionsCatalogStartTerminalResult } from "../../../../packages/gateway-protocol/src/index.js";
+import type {
+  ProjectsAddResult,
+  SessionsCatalogStartTerminalResult,
+} from "../../../../packages/gateway-protocol/src/index.js";
 import { selectApplicationSession } from "../../app/agent-selection.ts";
 import type { ApplicationContext, ApplicationNavigationOptions } from "../../app/context.ts";
 import { navigateWithRouteTransition } from "../../app/route-transition.ts";
@@ -148,6 +151,7 @@ export class DraftSubmissionFlow {
       message?: string;
       attachments?: unknown[];
       visibility?: NewSessionVisibility;
+      projectId?: string;
     } = {},
   ): Record<string, unknown> {
     return assembleDraftSessionCreateParams({
@@ -157,7 +161,7 @@ export class DraftSubmissionFlow {
       thinkingLevel: this.place.modelControl.thinkingLevel,
       visibility: options.visibility ?? this.visibilityValue,
       attachments: options.attachments,
-      projectId: this.place.projectId,
+      projectId: options.projectId ?? this.place.remoteProject?.projectId ?? this.place.projectId,
       worktree: this.place.worktree,
       baseRef: this.place.baseRef,
       worktreeName: this.place.worktreeName,
@@ -174,6 +178,12 @@ export class DraftSubmissionFlow {
   ): SessionMethodAccess {
     const gateway = this.read().context?.gateway.snapshot;
     const pendingCloud = Boolean(this.pendingCloud.sessionKey);
+    if (!pendingCloud && this.place.remoteProject && !this.place.remoteProject.projectId) {
+      return readSessionMethodAccess(gateway, {
+        method: "projects.add",
+        requiredScope: "operator.write",
+      });
+    }
     if (!pendingCloud || this.pendingCloud.phase === "creating") {
       const createAccess = readSessionMethodAccess(gateway, {
         method: "sessions.create",
@@ -413,12 +423,27 @@ export class DraftSubmissionFlow {
     this.callbacks.closeTransientUi();
     this.callbacks.requestUpdate();
     try {
+      const remoteProject = pendingCloud ? null : this.place.remoteProject;
+      let projectId = this.place.projectId || remoteProject?.projectId;
+      if (remoteProject && !projectId) {
+        const project = await submissionClient.request<ProjectsAddResult>(
+          "projects.add",
+          { gitUrl: remoteProject.cloneUrl },
+          { timeoutMs: null },
+        );
+        if (requestId !== this.submitRequestToken || this.gateway.client !== submissionClient) {
+          return;
+        }
+        projectId = project.id;
+        this.place.recordRemoteProjectId(remoteProject.cloneUrl, project.id);
+      }
       const cloudProfileId = this.cloudProfileForSubmission();
       const draftRetired = this.visibilityValue === "draft" && !this.canStartAsDraft();
       const createParams = this.buildDraftSessionCreateParams({
         message: cloudProfileId ? "" : message,
         visibility: draftRetired ? "normal" : this.visibilityValue,
         attachments: cloudProfileId ? undefined : apiAttachments,
+        projectId,
       });
       const cloudCreateParams = cloudProfileId
         ? pendingCloud
@@ -599,6 +624,10 @@ export class DraftSubmissionFlow {
           focusComposer: true,
         }).options,
       );
+    } catch (error) {
+      if (requestId === this.submitRequestToken && this.gateway.client === submissionClient) {
+        this.errorValue = error instanceof Error ? error.message : String(error);
+      }
     } finally {
       if (requestId === this.submitRequestToken) {
         this.submittingValue = false;

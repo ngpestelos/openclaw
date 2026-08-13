@@ -18,6 +18,7 @@ import type { NewSessionRouteData } from "./location.ts";
 import { newSessionSearch } from "./location.ts";
 import { NewSessionModelControl } from "./model-control.ts";
 import { isKnownWorkspacePath } from "./path.ts";
+import type { DraftRemoteProject } from "./place-picker.ts";
 
 type DraftPlaceSnapshot = Readonly<{
   context: ApplicationContext | undefined;
@@ -32,10 +33,15 @@ type DraftPlaceCallbacks = {
   onClearError: (error: string) => void;
 };
 
+type DraftProjectSelection =
+  | { kind: "local"; id: string }
+  | { kind: "remote"; project: DraftRemoteProject }
+  | null;
+
 export class DraftPlaceState {
   private agentIdValue = "";
   private folderValue = "";
-  private projectIdValue = "";
+  private projectSelection: DraftProjectSelection = null;
   private worktreeValue = false;
   private worktreeNameValue = "";
   private baseRefValue = "";
@@ -84,7 +90,11 @@ export class DraftPlaceState {
   }
 
   get projectId(): string {
-    return this.projectIdValue;
+    return this.projectSelection?.kind === "local" ? this.projectSelection.id : "";
+  }
+
+  get remoteProject(): DraftRemoteProject | null {
+    return this.projectSelection?.kind === "remote" ? this.projectSelection.project : null;
   }
 
   get worktree(): boolean {
@@ -137,7 +147,7 @@ export class DraftPlaceState {
   }
 
   selectedProject() {
-    return this.browser.selectedProject(this.projectIdValue);
+    return this.browser.selectedProject(this.projectId);
   }
 
   execNodes(): DraftNode[] {
@@ -190,7 +200,10 @@ export class DraftPlaceState {
   }
 
   folderSubmissionBlocked(): boolean {
-    if (this.projectIdValue) {
+    if (this.remoteProject) {
+      return false;
+    }
+    if (this.projectId) {
       return !this.selectedProject();
     }
     if (this.restoredFolderValidation !== "none") {
@@ -273,7 +286,7 @@ export class DraftPlaceState {
   resetDraft() {
     this.agentSelectedByUser = false;
     this.folderValue = "";
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.browser.resetProjectSearch();
     this.folderSelectedByUser = false;
     this.folderGatewayApproved = false;
@@ -312,7 +325,7 @@ export class DraftPlaceState {
     this.agentSelectedByUser = false;
     this.folderValue = "";
     this.browser.resetProjects();
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.folderSelectedByUser = false;
     this.preferredWorktreeRestore = false;
     this.worktreeSelectedByUser = false;
@@ -341,7 +354,7 @@ export class DraftPlaceState {
   }
 
   clearProjectSelection() {
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.maybeLoadBranches();
     this.callbacks.requestUpdate();
   }
@@ -362,7 +375,7 @@ export class DraftPlaceState {
     this.folderSelectedByUser = false;
     this.folderGatewayApproved = false;
     this.gatewayApprovedWorkspaceRoots = [];
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.preferredWorktreeRestore = false;
     this.worktreeSelectedByUser = false;
     this.cloudProfileIdValue = "";
@@ -381,7 +394,7 @@ export class DraftPlaceState {
       return;
     }
     this.execNodeValue = execNode;
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.cancelRestoredFolderValidation();
     if (execNode) {
       this.cloudProfileIdValue = "";
@@ -411,18 +424,18 @@ export class DraftPlaceState {
     if (!project) {
       return;
     }
-    this.cancelRestoredFolderValidation();
-    this.browser.resetProjectSearch();
-    this.projectIdValue = project.id;
-    this.execNodeValue = "";
-    this.cloudProfileIdValue = "";
-    this.callbacks.onError(null);
-    this.folderSelectedByUser = false;
-    this.preferredWorktreeRestore = false;
-    this.worktreeSelectedByUser = true;
-    this.worktreeValue = false;
-    this.worktreeNameValue = "";
-    this.maybeLoadBranches();
+    this.selectProject({ kind: "local", id: project.id });
+  }
+
+  selectRemoteProject(project: DraftRemoteProject) {
+    this.selectProject({ kind: "remote", project });
+  }
+
+  recordRemoteProjectId(cloneUrl: string, projectId: string) {
+    const project = this.remoteProject;
+    if (project?.cloneUrl === cloneUrl) {
+      this.projectSelection = { kind: "remote", project: { ...project, projectId } };
+    }
   }
 
   selectExecNode(execNode: string) {
@@ -442,7 +455,7 @@ export class DraftPlaceState {
       this.folderValue = execNode ? "" : this.workspacePath();
       this.folderSelectedByUser = false;
       this.folderGatewayApproved = false;
-      this.projectIdValue = "";
+      this.projectSelection = null;
     }
     this.worktreeValue = keepWorktree;
     this.browser.close();
@@ -463,7 +476,7 @@ export class DraftPlaceState {
       return;
     }
     this.cloudProfileIdValue = profileId;
-    this.projectIdValue = "";
+    this.projectSelection = null;
     this.callbacks.onError(null);
     this.worktreeValue = true;
     this.browser.close();
@@ -527,7 +540,7 @@ export class DraftPlaceState {
   }
 
   private usesCustomFolder(): boolean {
-    if (this.projectIdValue) {
+    if (this.projectSelection) {
       return false;
     }
     const folder = this.folderValue.trim();
@@ -647,6 +660,10 @@ export class DraftPlaceState {
     this.repositoryValue = { kind: "idle" };
     this.baseRefValue = "";
     const selectedProject = this.selectedProject();
+    if (this.remoteProject) {
+      this.preferredWorktreeRestore = false;
+      return;
+    }
     if (this.execNodeValue) {
       this.preferredWorktreeRestore = false;
       return;
@@ -746,5 +763,25 @@ export class DraftPlaceState {
     }
     const repoRoot = this.folderValue.trim() || this.workspacePath();
     return this.repositoryValue.repoRoot === repoRoot;
+  }
+
+  private selectProject(selection: Exclude<DraftProjectSelection, null>) {
+    const snapshot = this.read();
+    if (snapshot.submitting || snapshot.pendingCloudSessionKey) {
+      return;
+    }
+    this.cancelRestoredFolderValidation();
+    this.browser.resetProjectSearch();
+    this.projectSelection = selection;
+    this.execNodeValue = "";
+    this.cloudProfileIdValue = "";
+    this.callbacks.onError(null);
+    this.folderSelectedByUser = false;
+    this.preferredWorktreeRestore = false;
+    this.worktreeSelectedByUser = true;
+    this.worktreeValue = false;
+    this.worktreeNameValue = "";
+    this.maybeLoadBranches();
+    this.browser.close();
   }
 }

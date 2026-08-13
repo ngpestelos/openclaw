@@ -434,11 +434,10 @@ class NewSessionPage extends OpenClawLightDomElement {
         "operator.write",
       ),
       remoteProjects: this.browser.projectSearchResult?.projects ?? [],
+      selectedRemoteProject: this.place.remoteProject,
       projectSearchCredential: this.browser.projectSearchResult?.credential ?? null,
       projectSearchLoading: this.browser.projectSearchLoading,
       projectSearchError: this.browser.projectSearchError,
-      projectCloneBusy: this.browser.projectCloneBusy,
-      projectCloneError: this.browser.projectCloneError,
       projectId: this.place.projectId,
       execNodes: this.place.isAdmin() ? execNodes : [],
       environments: this.place.isAdmin() ? this.gateway.environments : [],
@@ -462,7 +461,7 @@ class NewSessionPage extends OpenClawLightDomElement {
       branchesLoading: this.place.repository.kind === "checking",
       baseRef: this.place.baseRef,
       worktreeName: this.place.worktreeName,
-      submitting: this.submission.submitting || this.browser.projectCloneBusy,
+      submitting: this.submission.submitting,
       pendingCloud: Boolean(this.submission.pendingCloud.sessionKey),
       showDestinations:
         Boolean(this.place.execNode) ||
@@ -486,7 +485,7 @@ class NewSessionPage extends OpenClawLightDomElement {
       onSelectCloudProfile: (profileId) => this.place.selectCloudProfile(profileId),
       onSelectProject: (projectId) => this.place.selectProjectId(projectId),
       onProjectQueryInput: (query) => this.browser.changeProjectQuery(query),
-      onCloneProject: (gitUrl) => void this.browser.addRemoteProject(gitUrl),
+      onSelectRemoteProject: (project) => this.place.selectRemoteProject(project),
       onApplyFolder: (folder, execNode) =>
         this.place.applyFolder(
           folder,

@@ -19,11 +19,10 @@ function placeParams(overrides: Partial<PlaceSelectParams> = {}): PlaceSelectPar
     projectSearchAvailable: true,
     projectAddAvailable: true,
     remoteProjects: [],
+    selectedRemoteProject: null,
     projectSearchCredential: null,
     projectSearchLoading: false,
     projectSearchError: null,
-    projectCloneBusy: false,
-    projectCloneError: null,
     projectId: "",
     execNodes: [],
     environments: null,
@@ -60,7 +59,7 @@ function placeParams(overrides: Partial<PlaceSelectParams> = {}): PlaceSelectPar
     onSelectCloudProfile: () => undefined,
     onSelectProject: () => undefined,
     onProjectQueryInput: () => undefined,
-    onCloneProject: () => undefined,
+    onSelectRemoteProject: () => undefined,
     onApplyFolder: () => undefined,
     onBrowse: () => undefined,
     onBrowserPathDraftChange: () => undefined,
@@ -209,7 +208,7 @@ describe("project picker", () => {
   });
 
   it("renders local matches before remote clone results and explains missing credentials", () => {
-    const onCloneProject = vi.fn();
+    const onSelectRemoteProject = vi.fn();
     const container = document.createElement("div");
     render(
       renderPlaceSelect(
@@ -234,7 +233,7 @@ describe("project picker", () => {
               private: false,
             },
           ],
-          onCloneProject,
+          onSelectRemoteProject,
         }),
       ),
       container,
@@ -250,11 +249,14 @@ describe("project picker", () => {
     container
       .querySelector<HTMLButtonElement>('[data-value="remote-project:openclaw/openclaw"]')
       ?.click();
-    expect(onCloneProject).toHaveBeenCalledWith("https://github.com/openclaw/openclaw.git");
+    expect(onSelectRemoteProject).toHaveBeenCalledWith({
+      identity: "openclaw/openclaw",
+      cloneUrl: "https://github.com/openclaw/openclaw.git",
+    });
   });
 
   it("turns a pasted URL into one explicit clone affordance", () => {
-    const onCloneProject = vi.fn();
+    const onSelectRemoteProject = vi.fn();
     const container = document.createElement("div");
     const gitUrl = "https://github.com/openclaw/openclaw.git";
     render(
@@ -270,7 +272,7 @@ describe("project picker", () => {
               private: false,
             },
           ],
-          onCloneProject,
+          onSelectRemoteProject,
         }),
       ),
       container,
@@ -280,7 +282,7 @@ describe("project picker", () => {
     const clone = container.querySelector<HTMLButtonElement>('[data-value="project-clone-url"]');
     expect(clone?.textContent).toContain("Clone");
     clone?.click();
-    expect(onCloneProject).toHaveBeenCalledWith(gitUrl);
+    expect(onSelectRemoteProject).toHaveBeenCalledWith({ identity: gitUrl, cloneUrl: gitUrl });
   });
 });
 

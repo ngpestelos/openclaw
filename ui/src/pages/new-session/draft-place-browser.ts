@@ -4,7 +4,6 @@ import type {
   FsListDirResult,
   ProjectRecord,
   ProjectRecent,
-  ProjectsAddResult,
   ProjectsListResult,
   ProjectsRegisterResult,
   ProjectsSearchRemoteResult,
@@ -46,8 +45,6 @@ export class DraftPlaceBrowser {
   private projectRecentsValue: ProjectRecent[] | undefined;
   private projectQueryValue = "";
   private debouncedProjectQuery = "";
-  private projectCloneBusyValue = false;
-  private projectCloneErrorValue: string | null = null;
   private browserLoadingValue = false;
   private browserErrorValue: string | null = null;
   private browserListingValue: FsListDirResult | null = null;
@@ -59,7 +56,6 @@ export class DraftPlaceBrowser {
   // Live head input; absolute paths stay applicable even without fs.listDir.
   private browserPathDraftValue = "";
   private browserRequestToken = 0;
-  private projectCloneRequestToken = 0;
   private projectSearchTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 
   private readonly projectsTask: Task<readonly unknown[], ProjectsListResult>;
@@ -173,14 +169,6 @@ export class DraftPlaceBrowser {
     return error instanceof Error ? error.message : String(error);
   }
 
-  get projectCloneBusy(): boolean {
-    return this.projectCloneBusyValue;
-  }
-
-  get projectCloneError(): string | null {
-    return this.projectCloneErrorValue;
-  }
-
   get browserLoading(): boolean {
     return this.browserLoadingValue;
   }
@@ -275,7 +263,6 @@ export class DraftPlaceBrowser {
 
   changeProjectQuery(query: string) {
     this.projectQueryValue = query;
-    this.projectCloneErrorValue = null;
     this.clearProjectSearchTimer();
     this.debouncedProjectQuery = "";
     void this.projectSearchTask.run([null, false, "", this.gateway.connectionEpoch]);
@@ -306,65 +293,10 @@ export class DraftPlaceBrowser {
     this.callbacks.requestUpdate();
   }
 
-  async addRemoteProject(gitUrl: string) {
-    const client = this.gateway.client;
-    const context = this.read().context;
-    if (
-      !client ||
-      !this.gateway.connected ||
-      this.projectCloneBusyValue ||
-      !context ||
-      !canCallGatewayMethod(context.gateway.snapshot, "projects.add", "operator.write")
-    ) {
-      return;
-    }
-    const requestId = ++this.projectCloneRequestToken;
-    const connectionEpoch = this.gateway.connectionEpoch;
-    this.projectCloneBusyValue = true;
-    this.projectCloneErrorValue = null;
-    this.callbacks.requestUpdate();
-    try {
-      const project = await client.request<ProjectsAddResult>(
-        "projects.add",
-        { gitUrl },
-        { timeoutMs: null },
-      );
-      if (
-        requestId !== this.projectCloneRequestToken ||
-        client !== this.gateway.client ||
-        connectionEpoch !== this.gateway.connectionEpoch
-      ) {
-        return;
-      }
-      await this.projectsTask.run([client, true, connectionEpoch]);
-      if (
-        requestId !== this.projectCloneRequestToken ||
-        client !== this.gateway.client ||
-        connectionEpoch !== this.gateway.connectionEpoch
-      ) {
-        return;
-      }
-      this.callbacks.onSelectProject(project.id);
-      this.close();
-    } catch (error) {
-      if (requestId === this.projectCloneRequestToken && client === this.gateway.client) {
-        this.projectCloneErrorValue = error instanceof Error ? error.message : String(error);
-      }
-    } finally {
-      if (requestId === this.projectCloneRequestToken) {
-        this.projectCloneBusyValue = false;
-        this.callbacks.requestUpdate();
-      }
-    }
-  }
-
   resetProjectSearch() {
     this.clearProjectSearchTimer();
-    this.projectCloneRequestToken += 1;
     this.projectQueryValue = "";
     this.debouncedProjectQuery = "";
-    this.projectCloneBusyValue = false;
-    this.projectCloneErrorValue = null;
     this.callbacks.requestUpdate();
   }
 
