@@ -151,10 +151,8 @@ export class DraftSubmissionFlow {
       message?: string;
       attachments?: unknown[];
       visibility?: NewSessionVisibility;
-      projectId?: string;
     } = {},
   ): Record<string, unknown> {
-    const project = this.place.browser;
     return assembleDraftSessionCreateParams({
       agentId: this.place.agentId,
       message: options.message ?? "",
@@ -162,7 +160,7 @@ export class DraftSubmissionFlow {
       thinkingLevel: this.place.modelControl.thinkingLevel,
       visibility: options.visibility ?? this.visibilityValue,
       attachments: options.attachments,
-      projectId: options.projectId ?? project.remoteProject?.projectId ?? project.projectId,
+      projectId: this.place.browser.remoteProject?.projectId ?? this.place.browser.projectId,
       worktree: this.place.worktree,
       baseRef: this.place.baseRef,
       worktreeName: this.place.worktreeName,
@@ -426,8 +424,7 @@ export class DraftSubmissionFlow {
     this.callbacks.requestUpdate();
     try {
       const remoteProject = pendingCloud ? null : this.place.browser.remoteProject;
-      let projectId = this.place.browser.projectId || remoteProject?.projectId;
-      if (remoteProject && !projectId) {
+      if (remoteProject && !remoteProject.projectId && !this.place.browser.projectId) {
         const project = await submissionClient.request<ProjectsAddResult>(
           "projects.add",
           { gitUrl: remoteProject.cloneUrl },
@@ -436,7 +433,6 @@ export class DraftSubmissionFlow {
         if (requestId !== this.submitRequestToken || this.gateway.client !== submissionClient) {
           return;
         }
-        projectId = project.id;
         this.place.browser.recordRemoteProjectId(remoteProject.cloneUrl, project.id);
       }
       const cloudProfileId = this.cloudProfileForSubmission();
@@ -445,7 +441,6 @@ export class DraftSubmissionFlow {
         message: cloudProfileId ? "" : message,
         visibility: draftRetired ? "normal" : this.visibilityValue,
         attachments: cloudProfileId ? undefined : apiAttachments,
-        projectId,
       });
       const cloudCreateParams = cloudProfileId
         ? pendingCloud
