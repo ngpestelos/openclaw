@@ -301,7 +301,8 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       // +1: account-scoped model catalog discovery for native agent harnesses.
       // +2: shared delegation policy (mode resolver + section builder) so harness
       //     runtimes render the same guidance instead of diverging prompt copies.
-      4334,
+      // +2: restore shipped channel setup helpers until stable packages migrate.
+      4336,
       env,
     ),
     publicFunctionExports: readPluginSdkSurfaceBudgetEnv(
@@ -386,8 +387,8 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       // +1: canonical sensitive-URL redactor so plugin CLI errors never print URL userinfo.
       // +2: shared delegation policy (mode resolver + section builder) so harness
       //     runtimes render the same guidance instead of diverging prompt copies.
-      // +6: restore shipped channel config schemas and setup helpers until stable packages migrate.
-      2583,
+      // +2: restore shipped channel setup helpers until stable packages migrate.
+      2579,
       env,
     ),
     publicDeprecatedExports: readPluginSdkSurfaceBudgetEnv(
