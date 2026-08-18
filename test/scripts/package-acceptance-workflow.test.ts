@@ -443,6 +443,7 @@ function runFullReleaseChildDispatch(
   const sleepPath = resolve(workdir, "sleep");
   const callsPath = resolve(workdir, "gh-calls.jsonl");
   const statusPath = resolve(workdir, "status-polls");
+  const dispatchPath = resolve(workdir, "dispatch-attempts");
   writeFileSync(callsPath, "");
   writeFileSync(
     ghPath,
@@ -466,7 +467,10 @@ function nextStatus() {
   return statuses[Math.min(index, statuses.length - 1)];
 }
 if (args[0] === "workflow" && args[1] === "run") {
-  if (env.MOCK_GH_DISPATCH_ERROR) {
+  let dispatchAttempt = 0;
+  try { dispatchAttempt = Number(fs.readFileSync(env.MOCK_GH_DISPATCH_ATTEMPTS, "utf8")); } catch {}
+  fs.writeFileSync(env.MOCK_GH_DISPATCH_ATTEMPTS, String(dispatchAttempt + 1));
+  if (env.MOCK_GH_DISPATCH_ERROR && (!env.MOCK_GH_DISPATCH_ERROR_ONCE || dispatchAttempt === 0)) {
     console.error(env.MOCK_GH_DISPATCH_ERROR);
     process.exit(1);
   }
@@ -608,6 +612,7 @@ exit 0
       MOCK_GH_CONCLUSION: "success",
       MOCK_GH_CURRENT_SHA: parentSha,
       MOCK_GH_DISPATCH_OUTPUT: "Created workflow_dispatch event.",
+      MOCK_GH_DISPATCH_ATTEMPTS: dispatchPath,
       MOCK_GH_JOBS: JSON.stringify(defaultJobs),
       MOCK_GH_MATCHES: "[101]",
       MOCK_GH_RUN_EVENT: "workflow_dispatch",
@@ -2148,7 +2153,7 @@ describe("package acceptance workflow", () => {
     }
   });
 
-  it("adopts exact full-release child runs without retrying ambiguous dispatch posts", () => {
+  it("adopts exact full-release child runs with one bounded ambiguous-dispatch recovery", () => {
     const dispatchScripts = FULL_RELEASE_CHILD_DISPATCHES.map((child) => {
       const job = workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, child.jobName);
       const step = workflowStep(job, child.stepName);
@@ -2161,7 +2166,7 @@ describe("package acceptance workflow", () => {
       expect(script.match(/gh workflow run/gu)).toHaveLength(1);
       expect(script).not.toContain("gh_with_retry workflow run");
       expectTextToIncludeAll(script, [
-        "The dispatch POST is one-shot",
+        "Observe the exact dispatch",
         'encoded_workflow_ref="$(jq -rn --arg value "$CHILD_WORKFLOW_REF"',
         'gh_with_retry api "repos/${GITHUB_REPOSITORY}/commits/${encoded_workflow_ref}" --jq .sha',
         '"$current_workflow_sha" != "$PARENT_WORKFLOW_SHA"',
@@ -2175,11 +2180,11 @@ describe("package acceptance workflow", () => {
         'DISPATCH_RUN_NAME="$dispatch_run_name" CHILD_WORKFLOW_REF="$CHILD_WORKFLOW_REF"',
         ".display_title == env.DISPATCH_RUN_NAME and .head_branch == env.CHILD_WORKFLOW_REF",
         "Multiple runs matched ${dispatch_run_name}; refusing to guess.",
-        "The dispatch was not retried to avoid creating a duplicate child.",
+        "retrying once with the same dispatch identity.",
         "adopted exact run ${run_id}",
       ]);
       expect(script.indexOf("dispatch failed with non-ambiguous status")).toBeLessThan(
-        script.indexOf('run_id=""'),
+        script.indexOf('dispatch_run_ids="$('),
       );
     }
 
@@ -2378,6 +2383,22 @@ describe("package acceptance workflow", () => {
         "[.workflow_runs[] | select(.display_title == env.DISPATCH_RUN_NAME and .head_branch == env.CHILD_WORKFLOW_REF) | .id]",
       );
       expect(calls.filter(({ args }) => args[0] === "run" && args[1] === "cancel")).toHaveLength(0);
+    },
+  );
+
+  it.each(FULL_RELEASE_CHILD_DISPATCHES)(
+    "reposts $jobName once when an ambiguous dispatch creates no child",
+    (child) => {
+      const { calls, result } = runFullReleaseChildDispatch(child, {
+        MOCK_GH_DISPATCH_ERROR: "HTTP 500: Failed to run workflow dispatch",
+        MOCK_GH_DISPATCH_ERROR_ONCE: "true",
+        MOCK_GH_MATCHES: "[]",
+        MOCK_GH_DISPATCH_OUTPUT: "https://github.com/openclaw/openclaw/actions/runs/101",
+      });
+
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.stderr).toContain("retrying once with the same dispatch identity");
+      expect(calls.filter(({ args }) => args[0] === "workflow")).toHaveLength(2);
     },
   );
 
@@ -4878,7 +4899,7 @@ describe("package artifact reuse", () => {
       'dispatch_output="$(gh workflow run "$workflow" --ref "$CHILD_WORKFLOW_REF" "$@" 2>&1)"',
       'dispatch_and_wait npm-telegram-beta-e2e.yml "$dispatch_run_name" "${args[@]}"',
       ".display_title == env.DISPATCH_RUN_NAME and .head_branch == env.CHILD_WORKFLOW_REF",
-      "The dispatch was not retried to avoid creating a duplicate child.",
+      "retrying once with the same dispatch identity.",
       'if [[ "$child_head_sha" != "$PARENT_WORKFLOW_SHA" ]]; then',
       '-f harness_ref="$TARGET_SHA"',
       'args=(-f package_spec="$PACKAGE_SPEC"',

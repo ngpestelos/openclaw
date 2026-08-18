@@ -633,7 +633,7 @@ jobs:
             local workflow="$1"
             local dispatch_run_name="$2"
             shift 2
-            local dispatch_output dispatch_status dispatch_run_ids matches_json match_count run_id status conclusion url poll_count run_json jobs_json child_head_sha encoded_workflow_ref current_workflow_sha expected_workflow_id
+            local dispatch_attempt dispatch_output dispatch_status dispatch_run_ids matches_json match_count run_id="" status conclusion url poll_count run_json jobs_json child_head_sha encoded_workflow_ref current_workflow_sha expected_workflow_id
 
             encoded_workflow_ref="$(jq -rn --arg value "$CHILD_WORKFLOW_REF" '$value | @uri')"
             current_workflow_sha="$(
@@ -647,29 +647,31 @@ jobs:
               gh_with_retry api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}" --jq .id
             )"
 
-            # The dispatch POST is one-shot: adopt its returned identity when available.
-            # If absent or ambiguous, exact-name recovery avoids a duplicate child.
-            set +e
-            dispatch_output="$(gh workflow run "$workflow" --ref "$CHILD_WORKFLOW_REF" "$@" 2>&1)"
-            dispatch_status=$?
-            set -e
-            printf '%s\n' "$dispatch_output"
-            if [[ "$dispatch_status" -ne 0 && ! "$dispatch_output" =~ $GH_TRANSIENT_SERVER_OR_NETWORK_PATTERN ]]; then
-              echo "::error::${workflow} dispatch failed with non-ambiguous status ${dispatch_status}; refusing adoption polling." >&2
-              exit "$dispatch_status"
-            fi
+            for dispatch_attempt in 1 2; do
+              # An ambiguous POST can still create a run. Observe the exact dispatch
+              # identity for five minutes before one bounded recovery POST.
+              set +e
+              dispatch_output="$(gh workflow run "$workflow" --ref "$CHILD_WORKFLOW_REF" "$@" 2>&1)"
+              dispatch_status=$?
+              set -e
+              printf '%s\n' "$dispatch_output"
+              if [[ "$dispatch_status" -ne 0 && ! "$dispatch_output" =~ $GH_TRANSIENT_SERVER_OR_NETWORK_PATTERN ]]; then
+                echo "::error::${workflow} dispatch failed with non-ambiguous status ${dispatch_status}; refusing adoption polling." >&2
+                exit "$dispatch_status"
+              fi
 
-            run_id=""
-            dispatch_run_ids="$(
-              sed -nE "s#^https://github[.]com/${GITHUB_REPOSITORY}/actions/runs/([0-9]+)\$#\1#p" \
-                <<< "$dispatch_output" | sort -u
-            )"
-            if [[ "$dispatch_run_ids" == *$'\n'* ]]; then
-              echo "::error::${workflow} dispatch returned multiple run identities; refusing to guess." >&2
-              exit 1
-            elif [[ -n "$dispatch_run_ids" ]]; then
-              run_id="$dispatch_run_ids"
-            else
+              dispatch_run_ids="$(
+                sed -nE "s#^https://github[.]com/${GITHUB_REPOSITORY}/actions/runs/([0-9]+)\$#\1#p" \
+                  <<< "$dispatch_output" | sort -u
+              )"
+              if [[ "$dispatch_run_ids" == *$'\n'* ]]; then
+                echo "::error::${workflow} dispatch returned multiple run identities; refusing to guess." >&2
+                exit 1
+              elif [[ -n "$dispatch_run_ids" ]]; then
+                run_id="$dispatch_run_ids"
+                break
+              fi
+
               for _ in $(seq 1 60); do
                 if matches_json="$(
                   DISPATCH_RUN_NAME="$dispatch_run_name" CHILD_WORKFLOW_REF="$CHILD_WORKFLOW_REF" \
@@ -690,9 +692,13 @@ jobs:
                 fi
                 sleep 5
               done
-            fi
+              if [[ -n "$run_id" || "$dispatch_status" -eq 0 || "$dispatch_attempt" -eq 2 ]]; then
+                break
+              fi
+              echo "::warning::No exact ${workflow} child appeared after the ambiguous dispatch; retrying once with the same dispatch identity." >&2
+            done
             if [[ -z "$run_id" ]]; then
-              echo "::error::Could not find exact dispatched run ${dispatch_run_name}; dispatch status ${dispatch_status}. The dispatch was not retried to avoid creating a duplicate child." >&2
+              echo "::error::Could not find exact dispatched run ${dispatch_run_name}; dispatch status ${dispatch_status} after ${dispatch_attempt} attempt(s)." >&2
               exit 1
             fi
 
