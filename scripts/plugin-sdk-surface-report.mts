@@ -169,7 +169,8 @@ const defaultPublicDeprecatedExportsByEntrypointBudget = Object.freeze({
   "reply-runtime": 1,
   "security-runtime": 1,
   "session-store-runtime": 4,
-  "setup-runtime": 0,
+  // +2: shipped Slack and Discord setup helpers retained through their package migration window.
+  "setup-runtime": 2,
   "reply-history": 6,
   "provider-auth": 19,
   "telegram-account": 3,
@@ -385,12 +386,14 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       // +1: canonical sensitive-URL redactor so plugin CLI errors never print URL userinfo.
       // +2: shared delegation policy (mode resolver + section builder) so harness
       //     runtimes render the same guidance instead of diverging prompt copies.
-      2577,
+      // +6: restore shipped channel config schemas and setup helpers until stable packages migrate.
+      2583,
       env,
     ),
     publicDeprecatedExports: readPluginSdkSurfaceBudgetEnv(
       "OPENCLAW_PLUGIN_SDK_MAX_PUBLIC_DEPRECATED_EXPORTS",
       // +3: canonical incognito classifier projected through deprecated compatibility barrels.
+      // +6: shipped channel config schemas and setup helpers retained during package migration.
       // +10: named media legacy projection deprecations across public compatibility barrels.
       // +2: channel prompt-context type and metadata builder compatibility aliases.
       // +1: shared ingress error factory projected through channel-message.
@@ -404,7 +407,7 @@ export function readPluginSdkSurfaceBudgets(env: NodeJS.ProcessEnv = process.env
       //     (voice-call/matrix runtime-doctor repair names, WhatsApp ack policy,
       //     Slack progress-draft render) so installed plugins survive upgrade (#124041 class).
       // -18: retire the expired August compatibility exports and messaging-targets subpath.
-      1134,
+      1140,
       env,
     ),
     publicWildcardReexports: readPluginSdkSurfaceBudgetEnv(
