@@ -594,7 +594,7 @@ export function writeSessionEntry(
       );
     }
   }
-  const normalizedEntry = normalizeSessionEntryTimestamp(entry);
+  const normalizedEntry = { ...normalizeSessionEntryTimestamp(entry) };
   if (!hasValidSessionEntryIdentity(normalizedEntry)) {
     throw new Error("Refusing invalid SQLite session entry identity");
   }

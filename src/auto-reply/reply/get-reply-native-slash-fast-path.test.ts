@@ -966,7 +966,12 @@ describe("maybeResolveNativeSlashCommandFastReply", () => {
         lastInteractionAt: 100,
         channel: "telegram",
       });
-      expect(persisted).toMatchObject(params.sessionEntry as object);
+      expect(persisted).toMatchObject({
+        sessionId: "session-1",
+        updatedAt: 100,
+        lastInteractionAt: 100,
+        channel: "telegram",
+      });
       return { shouldContinue: false, reply: { text: "ok" } };
     });
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100);
