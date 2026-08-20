@@ -20,6 +20,7 @@ const tempDirs = useAutoCleanupTempDirTracker(afterEach);
 function privateGenerationEntry(): InternalSessionEntry {
   return {
     activeWriterRunId: "writer-run",
+    conversationRouteContext: { guildId: "guild-a" },
     lifecycleRevision: "generation-1",
     lifecycleRunId: "lifecycle-run",
     sessionDiffBaselineCapture: {
@@ -34,6 +35,7 @@ function privateGenerationEntry(): InternalSessionEntry {
 
 function expectGenerationPrivateFieldsCleared(entry: InternalSessionEntry | undefined): void {
   expect(entry?.activeWriterRunId).toBeUndefined();
+  expect(entry?.conversationRouteContext).toBeUndefined();
   expect(entry?.lifecycleRunId).toBeUndefined();
   expect(entry?.sessionDiffBaselineCapture).toBeUndefined();
 }
@@ -56,11 +58,16 @@ const sessionFallbackKeepsThinkingSelectionPrivate: "prevThinkingLevelSelection"
   ? false
   : true = true;
 void sessionFallbackKeepsThinkingSelectionPrivate;
+const sessionEntryKeepsConversationRouteContextPrivate: "conversationRouteContext" extends keyof SessionEntry
+  ? false
+  : true = true;
+void sessionEntryKeepsConversationRouteContextPrivate;
 
 describe("plugin session writer claim projection", () => {
   it("excludes private claims and retired thinking provenance from entries and patches", () => {
     const entry = {
       activeWriterRunId: "run-writer",
+      conversationRouteContext: { guildId: "guild-a" },
       lifecycleRunId: "run-lifecycle",
       sessionDiffBaselineCapture: {
         version: 1,
@@ -94,6 +101,7 @@ describe("plugin session writer claim projection", () => {
     expect(
       projectPluginSessionEntryPatch({
         activeWriterRunId: "run-next",
+        conversationRouteContext: { guildId: "guild-b" },
         lifecycleRunId: "run-lifecycle-next",
         sessionDiffBaselineCapture: {
           version: 1,
@@ -134,6 +142,7 @@ describe("plugin session writer claim projection", () => {
 
     expect(loadSessionEntry({ sessionKey, storePath })).toMatchObject({
       activeWriterRunId: "writer-run",
+      conversationRouteContext: { guildId: "guild-a" },
       lifecycleRevision: "generation-1",
       lifecycleRunId: "lifecycle-run",
       model: "gpt-5.6",
@@ -147,6 +156,7 @@ describe("plugin session writer claim projection", () => {
     });
     expect(loadSessionEntry({ sessionKey, storePath })).toMatchObject({
       activeWriterRunId: "writer-run",
+      conversationRouteContext: { guildId: "guild-a" },
       lifecycleRevision: "generation-1",
       lifecycleRunId: "lifecycle-run",
       sessionDiffBaselineCapture: { captureId: "capture-1", status: "pending" },
