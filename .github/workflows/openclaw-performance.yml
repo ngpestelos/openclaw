@@ -95,7 +95,7 @@ jobs:
       kova_ref_trusted_for_live: ${{ steps.resolve.outputs.kova_ref_trusted_for_live }}
     steps:
       - name: Checkout target metadata
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.target_ref || github.sha }}
           path: .artifacts/performance-target
@@ -261,7 +261,7 @@ jobs:
 
       - name: Checkout OpenClaw
         if: steps.lane.outputs.run == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve_target.outputs.checkout_ref }}
           fetch-depth: 1
@@ -269,7 +269,7 @@ jobs:
 
       - name: Checkout performance workflow helpers
         if: steps.lane.outputs.run == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           path: .artifacts/performance-workflow
@@ -636,14 +636,14 @@ jobs:
       REQUESTED_REPEAT: ${{ inputs.repeat || '3' }}
     steps:
       - name: Checkout OpenClaw source target
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve_target.outputs.checkout_ref }}
           fetch-depth: 1
           persist-credentials: false
 
       - name: Checkout source performance helpers
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           path: .artifacts/performance-workflow
@@ -962,7 +962,7 @@ jobs:
 
       - name: Checkout performance publisher helper
         if: steps.lane.outputs.run == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           path: .artifacts/performance-publisher
