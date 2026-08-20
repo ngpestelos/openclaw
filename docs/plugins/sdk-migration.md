@@ -891,6 +891,23 @@ timeline for current status.
 
   </Accordion>
 
+  <Accordion title="Channel message adapters -> V2 dispatch authorization">
+    New or updated channel plugins that can deliver authorization-bearing
+    conversations should use `defineChannelMessageAdapterV2(...)` or
+    `createChannelMessageAdapterFromOutboundV2(...)`. Declare
+    `preDispatchAuthorization: true`, invoke the required
+    `onPlatformSendDispatch()` callback immediately before every final provider
+    operation, and set `openclaw.compat.pluginApi: ">=2026.8.1"` (or a newer
+    floor) in the plugin package manifest.
+
+    V1 message adapters remain supported for ordinary messaging. They are not
+    eligible for conversation send, turn, or recovery delivery because their
+    optional callback cannot express the required final-dispatch authorization
+    contract. See [Channel outbound API](/plugins/sdk-channel-outbound#adapter)
+    for the V2 adapter and bridge examples.
+
+  </Accordion>
+
   <Accordion title="runtime.tasks.flow -> runtime.tasks.managedFlows">
     **Old**: `runtime.tasks.flow` (singular) returned a live task-flow
     accessor.

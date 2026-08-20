@@ -7,7 +7,7 @@
 
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageSendResult,
   type MessageReceiptPartKind,
 } from "openclaw/plugin-sdk/channel-outbound";
@@ -39,6 +39,7 @@ export const twitchOutbound: ChannelOutboundAdapter = {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
 
@@ -221,13 +222,14 @@ function toTwitchMessageSendResult(
   };
 }
 
-export const twitchMessageAdapter = defineChannelMessageAdapter({
+export const twitchMessageAdapter = defineChannelMessageAdapterV2({
   id: "twitch",
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

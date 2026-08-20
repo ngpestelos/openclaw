@@ -10,7 +10,7 @@ import {
 import {
   createAccountStatusSink,
   createReplyToFanout,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   resolveOutboundSendDep,
 } from "openclaw/plugin-sdk/channel-outbound";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
@@ -214,7 +214,7 @@ function attachSignalVisibleText<T extends object>(result: T, visibleText: strin
   };
 }
 
-const signalMessageAdapter = defineChannelMessageAdapter({
+const signalMessageAdapter = defineChannelMessageAdapterV2({
   id: "signal",
   durableFinal: {
     capabilities: {
@@ -223,6 +223,7 @@ const signalMessageAdapter = defineChannelMessageAdapter({
       payload: true,
       replyTo: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

@@ -66,6 +66,7 @@ describe("mattermost channel message adapter", () => {
       to: "channel:warmup",
       text: "warmup",
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
     sendMessageMattermostMock.mockReset();
   });
@@ -107,6 +108,7 @@ describe("mattermost channel message adapter", () => {
             },
           },
         },
+        onPlatformSendDispatch: async () => {},
       });
       expect(sendMessageMattermostMock).toHaveBeenLastCalledWith("channel:team-1", "card", {
         cfg: {},
@@ -116,6 +118,10 @@ describe("mattermost channel message adapter", () => {
         mediaReadFile: undefined,
         replyToId: undefined,
         buttons: [[{ text: "Open", callback_data: "open" }]],
+        attachmentText: undefined,
+        requireMediaUpload: undefined,
+        onDeliveryResult: undefined,
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(result.receipt.platformMessageIds).toEqual(["post-1"]);
       expect(result.receipt.parts[0]?.kind).toBe("card");
@@ -133,6 +139,11 @@ describe("mattermost channel message adapter", () => {
         messageSendingHooks: () => {
           expect(requireTextSender(adapter)).toBeTypeOf("function");
         },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
+        },
       },
     });
   });
@@ -145,12 +156,15 @@ describe("mattermost channel message adapter", () => {
       to: "channel:team-1",
       text: "hello",
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(sendMessageMattermostMock).toHaveBeenLastCalledWith("channel:team-1", "hello", {
       cfg: {},
       accountId: "default",
       replyToId: undefined,
+      onPlatformSendDispatch: expect.any(Function),
+      onDeliveryResult: undefined,
     });
     expect(result.receipt.platformMessageIds).toEqual(["post-1"]);
     expect(result.receipt.parts[0]?.kind).toBe("text");
@@ -166,6 +180,7 @@ describe("mattermost channel message adapter", () => {
       mediaUrl: "https://example.com/a.png",
       mediaLocalRoots: ["/tmp/media"],
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(sendMessageMattermostMock).toHaveBeenLastCalledWith("channel:team-1", "caption", {
@@ -174,6 +189,8 @@ describe("mattermost channel message adapter", () => {
       mediaUrl: "https://example.com/a.png",
       mediaLocalRoots: ["/tmp/media"],
       replyToId: undefined,
+      onPlatformSendDispatch: expect.any(Function),
+      onDeliveryResult: undefined,
     });
     expect(result.receipt.parts[0]?.kind).toBe("media");
   });
@@ -187,12 +204,15 @@ describe("mattermost channel message adapter", () => {
       text: "threaded",
       accountId: "default",
       threadId: "thread-1",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(sendMessageMattermostMock).toHaveBeenLastCalledWith("channel:parent-1", "threaded", {
       cfg: {},
       accountId: "default",
       replyToId: "thread-1",
+      onPlatformSendDispatch: expect.any(Function),
+      onDeliveryResult: undefined,
     });
     expect(result.receipt.threadId).toBe("thread-1");
   });
@@ -207,12 +227,15 @@ describe("mattermost channel message adapter", () => {
       accountId: "default",
       replyToId: "post-parent-1",
       threadId: "thread-1",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(sendMessageMattermostMock).toHaveBeenLastCalledWith("channel:parent-1", "reply", {
       cfg: {},
       accountId: "default",
       replyToId: "post-parent-1",
+      onPlatformSendDispatch: expect.any(Function),
+      onDeliveryResult: undefined,
     });
     expect(result.receipt.replyToId).toBe("post-parent-1");
   });

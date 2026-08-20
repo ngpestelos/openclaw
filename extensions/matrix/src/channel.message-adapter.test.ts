@@ -63,6 +63,7 @@ describe("matrix channel message adapter", () => {
       to: "room:!room:example",
       text: "warmup",
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
     mocks.sendMessageMatrix.mockReset();
   });
@@ -99,6 +100,7 @@ describe("matrix channel message adapter", () => {
       deliveryQueueId: "queue-1",
       deliveryPartIndex: 2,
       deliveryPartCount: 3,
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(lastMatrixSendOptions()).toMatchObject({
@@ -138,6 +140,7 @@ describe("matrix channel message adapter", () => {
       mediaUrl: "file:///tmp/photo.png",
       replyToId: "$reply",
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(result.messageId).toBe("$overflow");
@@ -253,6 +256,7 @@ describe("matrix channel message adapter", () => {
         to: "room:!room:example",
         text: "hello",
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendMessageMatrix).toHaveBeenCalledTimes(1);
       expect(mocks.sendMessageMatrix.mock.lastCall?.[0]).toBe("room:!room:example");
@@ -274,6 +278,7 @@ describe("matrix channel message adapter", () => {
         mediaLocalRoots: ["/tmp/openclaw"],
         accountId: "default",
         audioAsVoice: true,
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendMessageMatrix).toHaveBeenCalledTimes(1);
       expect(mocks.sendMessageMatrix.mock.lastCall?.[0]).toBe("room:!room:example");
@@ -295,6 +300,7 @@ describe("matrix channel message adapter", () => {
         accountId: "default",
         replyToId: "$reply",
         threadId: "$thread",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendMessageMatrix).toHaveBeenCalledTimes(1);
       expect(mocks.sendMessageMatrix.mock.lastCall?.[0]).toBe("room:!room:example");
@@ -324,6 +330,11 @@ describe("matrix channel message adapter", () => {
         reconcileUnknownSend: () => {
           expect(adapter.durableFinal?.reconcileUnknownSend).toBeTypeOf("function");
           expect(adapter.durableFinal?.afterUnknownSendTerminal).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

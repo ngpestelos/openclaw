@@ -169,6 +169,7 @@ export const discordOutbound: ChannelOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   renderPresentation: async ({ payload, presentation }) => {

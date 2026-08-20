@@ -15,7 +15,7 @@ import {
   type ChannelPlugin,
 } from "openclaw/plugin-sdk/channel-core";
 import {
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type MessageReceipt,
 } from "openclaw/plugin-sdk/channel-outbound";
 import {
@@ -122,13 +122,14 @@ const zaloSendResultAdapter = createAttachedChannelResultAdapter({
   sendMedia: sendZaloDelivery,
 });
 
-const zaloMessageAdapter = defineChannelMessageAdapter({
+const zaloMessageAdapter = defineChannelMessageAdapterV2({
   id: "zalo",
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

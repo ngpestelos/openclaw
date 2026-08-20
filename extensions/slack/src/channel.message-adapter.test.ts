@@ -161,6 +161,7 @@ describe("slack channel message adapter", () => {
         accountId: "default",
         replyToId: "1712000000.000001",
         threadId: "1712345678.123456",
+        onPlatformSendDispatch: async () => {},
         deps: { sendSlack },
       });
       const [to, text, options] = expectLastSendSlackCall();
@@ -179,6 +180,7 @@ describe("slack channel message adapter", () => {
         text: "threaded",
         accountId: "default",
         threadId: "1712345678.123456",
+        onPlatformSendDispatch: async () => {},
         deps: { sendSlack },
       });
       const [to, text, options] = expectLastSendSlackCall();
@@ -200,6 +202,11 @@ describe("slack channel message adapter", () => {
         thread: proveThreadFallback,
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
         reconcileUnknownSend: () => {
           expect(adapter.durableFinal?.reconcileUnknownSend).toBeTypeOf("function");
@@ -246,6 +253,7 @@ describe("slack channel message adapter", () => {
       text: deliveryPayload.text ?? "",
       payload: deliveryPayload,
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
       deps: { sendSlack },
     });
 

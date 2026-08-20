@@ -259,10 +259,16 @@ function deriveRequiredMessageSendCapabilities(params: {
   replyToId?: string | null;
   threadId?: string | number | null;
   silent?: boolean;
+  requireUnknownSendReconciliation?: boolean;
+  requirePreDispatchAuthorization?: boolean;
 }): DurableFinalDeliveryRequirements {
   return deriveDurableFinalDeliveryRequirementsForBatch({
     ...params,
-    reconcileUnknownSend: true,
+    messageSendingHooks: params.requirePreDispatchAuthorization ? false : undefined,
+    reconcileUnknownSend: params.requireUnknownSendReconciliation,
+    extraCapabilities: params.requirePreDispatchAuthorization
+      ? { preDispatchAuthorization: true }
+      : undefined,
   });
 }
 
@@ -274,6 +280,8 @@ async function assertRequiredMessageSendDurability(params: {
   replyToId?: string | null;
   threadId?: string | number | null;
   silent?: boolean;
+  requireUnknownSendReconciliation?: boolean;
+  requirePreDispatchAuthorization?: boolean;
 }): Promise<void> {
   const support = await resolveOutboundDurableFinalDeliverySupport({
     cfg: params.cfg,
@@ -288,6 +296,15 @@ async function assertRequiredMessageSendDurability(params: {
     support.reason === "capability_mismatch" && support.capability
       ? `missing ${support.capability}`
       : support.reason;
+  if (
+    support.reason === "capability_mismatch" &&
+    support.capability === "preDispatchAuthorization"
+  ) {
+    throw new Error(
+      `Authorization-bearing conversation delivery is unsupported for ${params.channel}: ${suffix}. ` +
+        "Use a channel with a V2 message adapter that authorizes every final platform dispatch.",
+    );
+  }
   throw new Error(
     `Required durable message send is unsupported for ${params.channel}: ${suffix}. ` +
       'Use queuePolicy:"best_effort" for best-effort delivery, omit bestEffort:false in message-tool calls, or use a channel with required durable delivery support.',
@@ -407,7 +424,8 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
     // Lower-level queue-required callers must leave this internal opt-in unset.
     const requireUnknownSendReconciliation =
       params.requireUnknownSendReconciliation ?? params.queuePolicy === "required";
-    if (requireUnknownSendReconciliation) {
+    const requirePreDispatchAuthorization = params.deliveryCompletion?.kind === "conversation";
+    if (requireUnknownSendReconciliation || requirePreDispatchAuthorization) {
       await assertRequiredMessageSendDurability({
         cfg,
         agentId: params.agentId,
@@ -416,6 +434,8 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
         replyToId: reply?.replyToId,
         threadId: params.threadId,
         silent: params.silent,
+        requireUnknownSendReconciliation,
+        requirePreDispatchAuthorization,
       });
     }
     const send = await sendDurableMessageBatchCore({

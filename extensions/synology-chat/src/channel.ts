@@ -18,7 +18,7 @@ import { createChatChannelPlugin, type ChannelPlugin } from "openclaw/plugin-sdk
 import {
   waitUntilAbort,
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type MessageReceipt,
   type MessageReceiptPartKind,
 } from "openclaw/plugin-sdk/channel-outbound";
@@ -356,13 +356,14 @@ async function sendSynologyChatMedia(
   });
 }
 
-const synologyChatMessageAdapter = defineChannelMessageAdapter({
+const synologyChatMessageAdapter = defineChannelMessageAdapterV2({
   id: CHANNEL_ID,
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

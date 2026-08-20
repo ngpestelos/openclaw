@@ -527,6 +527,10 @@ async function initSessionStateAttemptLocked(
     : DEFAULT_RESET_TRIGGERS;
   const sessionScope = sessionCfg?.scope ?? "per-sender";
   const ingressTimingEnabled = isDiagnosticFlagEnabled("ingress.timing", cfg);
+  const preserveExistingConversationRoute =
+    !isSystemEvent &&
+    sessionCtxForState.InboundAccessAuthorized === true &&
+    sessionCtxForState.ConversationRouteContextAuthoritative === false;
 
   let sessionEntry: InternalSessionEntry;
 
@@ -825,9 +829,10 @@ async function initSessionStateAttemptLocked(
   // Otherwise a heartbeat target like "group:..." or a synthetic sender like
   // "heartbeat" leaks into the shared session and later user replies route to
   // the wrong chat.
-  const baseDeliveryContext = deliveryContextFromSession(baseEntry);
-  const baseDeliveryRoute = sessionDeliveryRoute(baseEntry);
-  const baseDeliveryOrigin = sessionDeliveryOrigin(baseEntry);
+  const routeSourceEntry = preserveExistingConversationRoute ? entry : baseEntry;
+  const baseDeliveryContext = deliveryContextFromSession(routeSourceEntry);
+  const baseDeliveryRoute = sessionDeliveryRoute(routeSourceEntry);
+  const baseDeliveryOrigin = sessionDeliveryOrigin(routeSourceEntry);
   const lastChannelRaw = isSystemEvent
     ? baseDeliveryContext?.channel
     : resolveLastChannelRaw({
@@ -929,6 +934,10 @@ async function initSessionStateAttemptLocked(
   });
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };
+  }
+  if (preserveExistingConversationRoute) {
+    sessionEntry.delivery = entry?.delivery ?? { kind: "none" };
+    sessionEntry.chatType = entry?.chatType;
   }
   sessionEntry.conversationRouteContext = conversationRouteContextFromSessionEntry(entry);
   sessionEntry.conversationRouteContextFingerprint = undefined;
@@ -1044,7 +1053,13 @@ async function initSessionStateAttemptLocked(
         clearAllCliSessions(entryToCommit);
         entryToCommit.agentHarnessId = undefined;
       }
-      stampConversationRouteContext(entryToCommit);
+      if (
+        !isSystemEvent &&
+        sessionCtxForState.InboundAccessAuthorized === true &&
+        sessionCtxForState.ConversationRouteContextAuthoritative !== false
+      ) {
+        stampConversationRouteContext(entryToCommit);
+      }
     },
     previousEntry: previousSessionEntry,
     retiredEntry: retiredLegacyMainDelivery,

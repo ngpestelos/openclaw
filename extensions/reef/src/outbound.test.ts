@@ -118,6 +118,7 @@ describe("reefOutboundAdapter", () => {
         cfg: {},
         to: "reef:Alice",
         text: "hello",
+        onPlatformSendDispatch: async () => {},
       })
       .catch((caught: unknown) => caught);
 
@@ -139,7 +140,12 @@ describe("reefOutboundAdapter", () => {
     setActiveReef({ flow: { send }, friends: {}, reviews: {} } as never);
 
     const error = await reefMessageAdapter.send
-      .text({ cfg: {}, to: "reef:Alice", text: "hello" })
+      .text({
+        cfg: {},
+        to: "reef:Alice",
+        text: "hello",
+        onPlatformSendDispatch: async () => {},
+      })
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(PlatformMessageNotDispatchedError);
@@ -163,7 +169,12 @@ describe("reefOutboundAdapter", () => {
     setActiveReef({ flow, friends: {}, reviews: {} } as never);
 
     const error = await reefMessageAdapter.send
-      .text({ cfg: {}, to: "reef:Alice", text: "hello" })
+      .text({
+        cfg: {},
+        to: "reef:Alice",
+        text: "hello",
+        onPlatformSendDispatch: async () => {},
+      })
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(PlatformMessageNotDispatchedError);
@@ -190,7 +201,12 @@ describe("reefOutboundAdapter", () => {
     setActiveReef({ flow: { send }, friends: {}, reviews: {} } as never);
 
     const error = await reefMessageAdapter.send
-      .text({ cfg: {}, to: "reef:Alice", text: "hello" })
+      .text({
+        cfg: {},
+        to: "reef:Alice",
+        text: "hello",
+        onPlatformSendDispatch: async () => {},
+      })
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(PlatformMessageNotDispatchedError);

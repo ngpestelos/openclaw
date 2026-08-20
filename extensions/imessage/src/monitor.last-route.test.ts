@@ -451,6 +451,7 @@ describe("iMessage monitor last-route updates", () => {
       expect(dispatchParams?.ctx).toMatchObject({
         From: `${expectedService}:${DEFAULT_SENDER}`,
         To: `${expectedService}:${DEFAULT_SENDER}`,
+        ConversationRoutePeerId: DEFAULT_SENDER,
       });
       await vi.waitFor(() => {
         expect(
@@ -502,6 +503,7 @@ describe("iMessage monitor last-route updates", () => {
       ChatType: "group",
       From: "imessage:group:456",
       To: "chat_id:456",
+      ConversationRoutePeerId: "456",
     });
   });
 

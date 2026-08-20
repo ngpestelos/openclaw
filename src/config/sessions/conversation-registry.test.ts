@@ -21,6 +21,7 @@ import {
   deleteSessionEntryLifecycle,
   loadSessionEntry,
   replaceSessionEntrySync,
+  updateSessionLastRoute,
   upsertSessionEntryCore as upsertCanonicalSessionEntry,
 } from "./session-accessor.js";
 import {
@@ -92,6 +93,45 @@ describe("conversation registry", () => {
     expect(resolveConversation({ agentId: "main", storePath }, peerA!.conversationRef)).toEqual(
       peerA,
     );
+  });
+
+  it("does not carry route authority across a last-route rebind", async () => {
+    const scope = {
+      agentId: "main",
+      sessionKey: "agent:main:discord:channel:alpha",
+      storePath,
+    };
+    await upsertSessionEntry(scope, {
+      sessionId: "route-rebind-session",
+      lifecycleRevision: "route-rebind-revision",
+      updatedAt: 100,
+      chatType: "channel",
+      deliveryContext: { channel: "discord", accountId: "default", to: "channel:alpha" },
+      origin: {
+        provider: "discord",
+        accountId: "default",
+        to: "channel:alpha",
+        nativeChannelId: "alpha",
+      },
+      conversationRouteContext: { guildId: "guild-alpha", memberRoleIds: ["alpha"] },
+    });
+
+    await updateSessionLastRoute({
+      storePath,
+      sessionKey: scope.sessionKey,
+      channel: "discord",
+      accountId: "default",
+      to: "channel:beta",
+    });
+
+    const rebound = loadSessionEntry(scope);
+    expect(rebound?.conversationRouteContext).toBeUndefined();
+    expect(rebound?.conversationRouteContextFingerprint).toBeUndefined();
+    const beta = listConversations(scope, { channel: "discord" }).find(
+      (conversation) => conversation.target === "channel:beta",
+    );
+    expect(beta?.routeContext).toBeUndefined();
+    expect(beta?.routeContextObserved).toBeUndefined();
   });
 
   it("catalogs a directory address without inventing a model-context session", () => {

@@ -467,6 +467,7 @@ describe("signal outbound", () => {
       } as OpenClawConfig,
       to: "signal:me",
       text: "approval",
+      onPlatformSendDispatch: async () => {},
       deps: { signal: send },
     });
 
@@ -1194,8 +1195,10 @@ describe("signal outbound", () => {
       to: "signal:+15555550123",
       text: "reply",
       replyToId: "1700000000001",
+      onPlatformSendDispatch: async () => {},
       deps: { signal: send },
     } as Parameters<NonNullable<typeof signalPlugin.message.send.text>>[0] & {
+      onPlatformSendDispatch: () => Promise<void>;
       deps: { signal: typeof send };
     });
 
@@ -1206,6 +1209,7 @@ describe("signal outbound", () => {
       replyToId: "1700000000001",
       replyToAuthor: "+15555550123",
       replyToBody: "original message",
+      onPlatformSendDispatch: expect.any(Function),
     });
   });
 
@@ -1231,14 +1235,17 @@ describe("signal outbound", () => {
             cfg: {} as OpenClawConfig,
             to: "signal:+15555550123",
             text: "hello",
+            onPlatformSendDispatch: async () => {},
             deps,
           } as Parameters<NonNullable<typeof signalPlugin.message.send.text>>[0] & {
+            onPlatformSendDispatch: () => Promise<void>;
             deps: typeof deps;
           });
           expect(send).toHaveBeenCalledWith("+15555550123", "hello", {
             cfg: {},
             maxBytes: undefined,
             accountId: undefined,
+            onPlatformSendDispatch: expect.any(Function),
           });
           expect(result?.receipt.platformMessageIds).toEqual(["signal-text-1"]);
         },
@@ -1248,8 +1255,10 @@ describe("signal outbound", () => {
             to: "signal:+15555550123",
             text: "image",
             mediaUrl: "https://example.com/image.png",
+            onPlatformSendDispatch: async () => {},
             deps,
           } as Parameters<NonNullable<typeof signalPlugin.message.send.media>>[0] & {
+            onPlatformSendDispatch: () => Promise<void>;
             deps: typeof deps;
           });
           expect(send).toHaveBeenCalledWith("+15555550123", "image", {
@@ -1257,6 +1266,7 @@ describe("signal outbound", () => {
             mediaUrl: "https://example.com/image.png",
             maxBytes: undefined,
             accountId: undefined,
+            onPlatformSendDispatch: expect.any(Function),
           });
           expect(result?.receipt.platformMessageIds).toEqual(["signal-media-1"]);
         },
@@ -1276,8 +1286,10 @@ describe("signal outbound", () => {
             to: "signal:+15555550123",
             text: "reply",
             replyToId: "1700000000001",
+            onPlatformSendDispatch: async () => {},
             deps,
           } as Parameters<NonNullable<typeof signalPlugin.message.send.text>>[0] & {
+            onPlatformSendDispatch: () => Promise<void>;
             deps: typeof deps;
           });
           expect(send).toHaveBeenLastCalledWith(
@@ -1290,6 +1302,11 @@ describe("signal outbound", () => {
           expect(signalPlugin.outbound?.shouldSuppressLocalPayloadPrompt).toBeTypeOf("function");
           expect(signalPlugin.outbound?.renderPresentation).toBeTypeOf("function");
           expect(signalPlugin.outbound?.afterDeliverPayload).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(signalPlugin.message?.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -1304,6 +1321,7 @@ describe("signal outbound", () => {
       { capability: "thread", status: "not_declared" },
       { capability: "nativeQuote", status: "not_declared" },
       { capability: "messageSendingHooks", status: "verified" },
+      { capability: "preDispatchAuthorization", status: "verified" },
       { capability: "batch", status: "not_declared" },
       { capability: "reconcileUnknownSend", status: "not_declared" },
       { capability: "afterSendSuccess", status: "not_declared" },

@@ -365,6 +365,7 @@ const matrixChannelOutbound: ChannelOutboundAdapter = {
       messageSendingHooks: true,
       afterCommit: true,
       reconcileUnknownSend: true,
+      preDispatchAuthorization: true,
     },
   },
   presentationCapabilities: {

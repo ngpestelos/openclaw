@@ -24,6 +24,7 @@ type SignalMediaContext = {
   mediaLocalRoots?: readonly string[];
   mediaReadFile?: (filePath: string) => Promise<Buffer>;
   replyToId?: string;
+  onPlatformSendDispatch: () => Promise<void>;
   deps?: { signal: typeof sendMessageSignal };
 };
 
@@ -155,6 +156,7 @@ describe("Signal host-owned outbound media access", () => {
       to: "+15551234567",
       text: "Workspace attachment",
       mediaUrl: "chart.png",
+      onPlatformSendDispatch: async () => {},
       ...overrides,
     };
   }

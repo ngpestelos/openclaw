@@ -188,6 +188,7 @@ describe("googlechatPlugin outbound", () => {
             cfg,
             to: "spaces/AAA",
             text: "hello",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result?.receipt.parts[0]?.kind).toBe("text");
           expect(result?.receipt.platformMessageIds).toEqual(["spaces/AAA/messages/msg-1"]);
@@ -199,6 +200,7 @@ describe("googlechatPlugin outbound", () => {
             to: "spaces/AAA",
             text: "threaded",
             threadId: "thread-1",
+            onPlatformSendDispatch: async () => {},
           });
           const request = requireMockArg(sendGoogleChatMessageMock) as {
             space?: string;
@@ -209,6 +211,11 @@ describe("googlechatPlugin outbound", () => {
         },
         messageSendingHooks: () => {
           expect(googlechatMessageAdapter.send?.text).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(googlechatMessageAdapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -222,6 +229,7 @@ describe("googlechatPlugin outbound", () => {
       { capability: "thread", status: "verified" },
       { capability: "nativeQuote", status: "not_declared" },
       { capability: "messageSendingHooks", status: "verified" },
+      { capability: "preDispatchAuthorization", status: "verified" },
       { capability: "batch", status: "not_declared" },
       { capability: "reconcileUnknownSend", status: "not_declared" },
       { capability: "afterSendSuccess", status: "not_declared" },

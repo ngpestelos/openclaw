@@ -6,7 +6,7 @@ import {
 } from "openclaw/plugin-sdk/channel-core";
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageSendPayloadContext,
 } from "openclaw/plugin-sdk/channel-outbound";
 import { DEFAULT_ACCOUNT_ID } from "./accounts.js";
@@ -94,7 +94,7 @@ async function sendQaChannelMessagePayload(ctx: QaChannelPayloadSendContext) {
   };
 }
 
-const qaChannelMessageAdapter = defineChannelMessageAdapter({
+const qaChannelMessageAdapter = defineChannelMessageAdapterV2({
   id: QA_CHANNEL_ID,
   durableFinal: {
     capabilities: {
@@ -104,6 +104,7 @@ const qaChannelMessageAdapter = defineChannelMessageAdapter({
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

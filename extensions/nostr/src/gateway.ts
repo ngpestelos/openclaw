@@ -357,6 +357,7 @@ export const nostrOutboundAdapter: NostrOutboundAdapter = {
     durableFinal: {
       text: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   sendText: async ({ cfg, to, text, accountId, onPlatformSendDispatch }) => {

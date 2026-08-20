@@ -1,6 +1,6 @@
 // Resolves outbound channel adapters and executes their send lifecycle.
 import type {
-  ChannelMessageAdapterShape,
+  AnyChannelMessageAdapterShape,
   ChannelMessageSendAttemptContext,
   ChannelMessageSendAttemptKind,
   ChannelMessageSendLifecycleAdapter,
@@ -39,6 +39,16 @@ const log = createSubsystemLogger("outbound/deliver");
 const loadChannelBootstrapRuntime = createLazyRuntimeModule(
   () => import("./channel-bootstrap.runtime.js"),
 );
+
+function supportsPreDispatchAuthorization(
+  message: AnyChannelMessageAdapterShape | undefined,
+): boolean {
+  const capabilities = message?.durableFinal?.capabilities;
+  if (capabilities === undefined || !("preDispatchAuthorization" in capabilities)) {
+    return false;
+  }
+  return capabilities.preDispatchAuthorization;
+}
 export async function resolveChannelOutboundDirectiveOptions(params: {
   cfg: OpenClawConfig;
   agentId?: string;
@@ -178,7 +188,13 @@ export async function resolveOutboundDurableFinalDeliverySupport(params: {
   for (const [capability, required] of Object.entries(params.requirements ?? {}) as Array<
     [DurableFinalDeliveryRequirement, boolean | undefined]
   >) {
-    if (required === true && durableFinal?.[capability] !== true) {
+    let supported: boolean;
+    if (capability === "preDispatchAuthorization") {
+      supported = supportsPreDispatchAuthorization(message);
+    } else {
+      supported = durableFinal?.[capability] === true;
+    }
+    if (required === true && !supported) {
       return { ok: false, reason: "capability_mismatch", capability };
     }
     if (
@@ -224,7 +240,7 @@ export async function resolveOutboundDurableFinalDeliverySupport(params: {
 function createPluginHandler(
   params: ChannelHandlerParams & {
     outbound?: ChannelOutboundAdapter;
-    message?: ChannelMessageAdapterShape;
+    message?: AnyChannelMessageAdapterShape;
   },
 ): ChannelHandler | null {
   const outbound = params.outbound;
@@ -232,6 +248,12 @@ function createPluginHandler(
   const messageMedia = params.message?.send?.media;
   const messagePayload = params.message?.send?.payload;
   const messageLifecycle = params.message?.send?.lifecycle;
+  const supportsPreDispatch = supportsPreDispatchAuthorization(params.message);
+  if (params.requirePreDispatchAuthorization && !supportsPreDispatch) {
+    throw new Error(
+      `Authorization-bearing conversation delivery requires a V2 message adapter for ${params.channel}`,
+    );
+  }
   const assertUnknownSendReconciliationKind = (kind: ChannelMessageSendAttemptKind): void => {
     const durableFinal = params.message?.durableFinal;
     if (
@@ -284,6 +306,56 @@ function createPluginHandler(
         ? { ...baseCtx.formatting, ...overrides.formatting }
         : baseCtx.formatting,
   });
+  const runMessageSend = async <
+    TContext extends ChannelMessageSendAttemptContext,
+    TResult extends ChannelMessageSendResult,
+  >(
+    ctx: TContext,
+    send: (
+      authorizedCtx: TContext & { onPlatformSendDispatch: () => Promise<void> },
+    ) => Promise<TResult>,
+  ): Promise<{ result: TResult; afterCommit?: OutboundDeliveryCommitHook }> => {
+    if (!supportsPreDispatch) {
+      const legacyCtx = {
+        ...ctx,
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch ?? (async () => undefined),
+      };
+      return await runChannelMessageSendWithLifecycle({
+        lifecycle: messageLifecycle,
+        ctx: legacyCtx,
+        send: () => send(legacyCtx),
+      });
+    }
+    let active = true;
+    const authorizedCtx = {
+      ...ctx,
+      onPlatformSendDispatch: async () => {
+        if (!active) {
+          throw new Error("Platform send authorization expired when the adapter send settled");
+        }
+        if (!params.onPlatformSendDispatch) {
+          if (params.requirePreDispatchAuthorization) {
+            throw new Error("Platform send authorization is unavailable for conversation delivery");
+          }
+          return;
+        }
+        await params.onPlatformSendDispatch();
+        if (!active) {
+          throw new Error("Platform send authorization expired during revalidation");
+        }
+      },
+    };
+    try {
+      return await runChannelMessageSendWithLifecycle({
+        lifecycle: messageLifecycle,
+        ctx: authorizedCtx,
+        send: () => send(authorizedCtx),
+      });
+    } finally {
+      // Adapter-retained callbacks must not outlive the exact send invocation that received them.
+      active = false;
+    }
+  };
   const buildTargetRef = (overrides?: OutboundMessageSendOverrides): ChannelOutboundTargetRef => ({
     channel: params.channel,
     to: params.to,
@@ -398,7 +470,7 @@ function createPluginHandler(
           })
       : undefined,
     sendPayload:
-      messagePayload || outbound?.sendPayload
+      messagePayload || (!params.requirePreDispatchAuthorization && outbound?.sendPayload)
         ? async (payload, overrides) => {
             const payloadCtx = {
               ...resolveCtx(overrides),
@@ -413,13 +485,9 @@ function createPluginHandler(
                 ...payloadCtx,
                 onDeliveryResult: onMessageDeliveryResult,
               };
-              const sent = await runChannelMessageSendWithLifecycle({
-                lifecycle: messageLifecycle,
-                ctx: messagePayloadCtx,
-                send: async () => {
-                  await params.onPlatformSendStart?.(messagePayloadCtx);
-                  return await messagePayload(messagePayloadCtx);
-                },
+              const sent = await runMessageSend(messagePayloadCtx, async (authorizedCtx) => {
+                await params.onPlatformSendStart?.(authorizedCtx);
+                return await messagePayload(authorizedCtx);
               });
               return attachOutboundDeliveryCommitHook(
                 normalizeChannelMessageSendResult(params.channel, sent.result),
@@ -430,29 +498,31 @@ function createPluginHandler(
             return outbound!.sendPayload!(payloadCtx);
           }
         : undefined,
-    sendFormattedText: outbound?.sendFormattedText
-      ? async (text, overrides) => {
-          const formattedCtx = {
-            ...resolveCtx(overrides),
-            text,
-          };
-          assertUnknownSendReconciliationKind("text");
-          await params.onPlatformSendStart?.(formattedCtx);
-          return await outbound.sendFormattedText!(formattedCtx);
-        }
-      : undefined,
-    sendFormattedMedia: outbound?.sendFormattedMedia
-      ? async (caption, mediaUrl, overrides) => {
-          const formattedCtx = {
-            ...resolveCtx(overrides),
-            text: caption,
-            mediaUrl,
-          };
-          assertUnknownSendReconciliationKind("media");
-          await params.onPlatformSendStart?.(formattedCtx);
-          return await outbound.sendFormattedMedia!(formattedCtx);
-        }
-      : undefined,
+    sendFormattedText:
+      !params.requirePreDispatchAuthorization && outbound?.sendFormattedText
+        ? async (text, overrides) => {
+            const formattedCtx = {
+              ...resolveCtx(overrides),
+              text,
+            };
+            assertUnknownSendReconciliationKind("text");
+            await params.onPlatformSendStart?.(formattedCtx);
+            return await outbound.sendFormattedText!(formattedCtx);
+          }
+        : undefined,
+    sendFormattedMedia:
+      !params.requirePreDispatchAuthorization && outbound?.sendFormattedMedia
+        ? async (caption, mediaUrl, overrides) => {
+            const formattedCtx = {
+              ...resolveCtx(overrides),
+              text: caption,
+              mediaUrl,
+            };
+            assertUnknownSendReconciliationKind("media");
+            await params.onPlatformSendStart?.(formattedCtx);
+            return await outbound.sendFormattedMedia!(formattedCtx);
+          }
+        : undefined,
     sendText: async (text, overrides) => {
       const textCtx = {
         ...resolveCtx(overrides),
@@ -462,18 +532,17 @@ function createPluginHandler(
       assertUnknownSendReconciliationKind("text");
       if (messageText) {
         const messageTextCtx = { ...textCtx, onDeliveryResult: onMessageDeliveryResult };
-        const sent = await runChannelMessageSendWithLifecycle({
-          lifecycle: messageLifecycle,
-          ctx: messageTextCtx,
-          send: async () => {
-            await params.onPlatformSendStart?.(messageTextCtx);
-            return await messageText(messageTextCtx);
-          },
+        const sent = await runMessageSend(messageTextCtx, async (authorizedCtx) => {
+          await params.onPlatformSendStart?.(authorizedCtx);
+          return await messageText(authorizedCtx);
         });
         return attachOutboundDeliveryCommitHook(
           normalizeChannelMessageSendResult(params.channel, sent.result),
           sent.afterCommit,
         );
+      }
+      if (params.requirePreDispatchAuthorization) {
+        throw new Error(`V2 message adapter text delivery is unavailable for ${params.channel}`);
       }
       await params.onPlatformSendStart?.(textCtx);
       return sendText!(textCtx);
@@ -489,18 +558,17 @@ function createPluginHandler(
       assertUnknownSendReconciliationKind("media");
       if (messageMedia) {
         const messageMediaCtx = { ...mediaCtx, onDeliveryResult: onMessageDeliveryResult };
-        const sent = await runChannelMessageSendWithLifecycle({
-          lifecycle: messageLifecycle,
-          ctx: messageMediaCtx,
-          send: async () => {
-            await params.onPlatformSendStart?.(messageMediaCtx);
-            return await messageMedia(messageMediaCtx);
-          },
+        const sent = await runMessageSend(messageMediaCtx, async (authorizedCtx) => {
+          await params.onPlatformSendStart?.(authorizedCtx);
+          return await messageMedia(authorizedCtx);
         });
         return attachOutboundDeliveryCommitHook(
           normalizeChannelMessageSendResult(params.channel, sent.result),
           sent.afterCommit,
         );
+      }
+      if (params.requirePreDispatchAuthorization) {
+        throw new Error(`V2 message adapter media delivery is unavailable for ${params.channel}`);
       }
       if (sendMedia) {
         await params.onPlatformSendStart?.(mediaCtx);

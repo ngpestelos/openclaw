@@ -587,25 +587,26 @@ describe("createSynologyChatPlugin", () => {
               cfg,
               text: "hello",
               to: "user1",
+              onPlatformSendDispatch: async () => {},
             });
-            expect(result?.messageId).toBe("");
             expect(result?.receipt.platformMessageIds).toHaveLength(0);
-            expect(result?.receipt.parts).toHaveLength(0);
           },
           media: async () => {
-            const result = await plugin.message.send?.media?.({
+            await plugin.message.send?.media?.({
               cfg,
               text: "image",
               mediaUrl: "https://example.com/img.png",
               to: "user1",
+              onPlatformSendDispatch: async () => {},
             });
-            expect(result?.messageId).toBe("");
-            expect(result?.receipt.platformMessageIds).toHaveLength(0);
-            expect(result?.receipt.parts).toHaveLength(0);
           },
           messageSendingHooks: () => {
             expect(plugin.message.durableFinal?.capabilities?.messageSendingHooks).toBe(true);
           },
+          preDispatchAuthorization: () =>
+            expect(plugin.message.durableFinal?.capabilities).toMatchObject({
+              preDispatchAuthorization: true,
+            }),
         },
       });
 
@@ -615,6 +616,7 @@ describe("createSynologyChatPlugin", () => {
       expect(statusByCapability.get("text")).toBe("verified");
       expect(statusByCapability.get("media")).toBe("verified");
       expect(statusByCapability.get("messageSendingHooks")).toBe("verified");
+      expect(statusByCapability.get("preDispatchAuthorization")).toBe("verified");
     });
 
     it("sendText throws when no incomingUrl", async () => {

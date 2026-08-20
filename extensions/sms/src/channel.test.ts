@@ -353,6 +353,7 @@ describe("smsPlugin outbound", () => {
       mediaUrl: "/tmp/photo.jpg",
       mediaLocalRoots: ["/tmp"],
       mediaReadFile: async () => Buffer.from("photo"),
+      onPlatformSendDispatch: async () => {},
     };
     await smsPlugin.message?.send?.lifecycle?.beforeSendAttempt?.(ctx);
     const result = await smsPlugin.message?.send?.media?.(ctx);

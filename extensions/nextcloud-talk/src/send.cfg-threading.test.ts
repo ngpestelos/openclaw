@@ -301,6 +301,7 @@ describe("nextcloud-talk send cfg threading", () => {
             to: "room:abc123",
             text: "hello",
             accountId: "work",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result?.receipt.platformMessageIds).toEqual(["22345"]);
         },
@@ -311,6 +312,7 @@ describe("nextcloud-talk send cfg threading", () => {
             text: "image",
             mediaUrl: "https://example.com/image.png",
             accountId: "work",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result?.receipt.platformMessageIds).toEqual(["22346"]);
           const mediaSendCall = fetchMock.mock.calls.at(1);
@@ -330,8 +332,14 @@ describe("nextcloud-talk send cfg threading", () => {
             text: "threaded",
             replyToId: "parent-1",
             accountId: "work",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result?.receipt.replyToId).toBe("parent-1");
+        },
+        preDispatchAuthorization: () => {
+          expect(nextcloudTalkMessageAdapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -339,6 +347,9 @@ describe("nextcloud-talk send cfg threading", () => {
     expect(proofResults.find((result) => result.capability === "text")?.status).toBe("verified");
     expect(proofResults.find((result) => result.capability === "media")?.status).toBe("verified");
     expect(proofResults.find((result) => result.capability === "replyTo")?.status).toBe("verified");
+    expect(
+      proofResults.find((result) => result.capability === "preDispatchAuthorization")?.status,
+    ).toBe("verified");
   });
 
   it("fails hard for sendReaction when cfg is omitted", async () => {

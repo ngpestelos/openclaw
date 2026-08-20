@@ -346,6 +346,7 @@ describe("sendMessageIrc cfg threading", () => {
       quit: ReturnType<typeof vi.fn>;
     };
     hoisted.connectIrcClient.mockResolvedValue(client);
+    const onPlatformSendDispatch = vi.fn(async () => {});
 
     const proofResults = await verifyChannelMessageAdapterCapabilityProofs({
       adapterName: "irc",
@@ -356,6 +357,7 @@ describe("sendMessageIrc cfg threading", () => {
             cfg: providedCfg,
             to: "#room",
             text: "hello",
+            onPlatformSendDispatch,
           });
           expect(result?.receipt.platformMessageIds).toEqual(["irc-msg-1"]);
           expect(result?.target).toEqual({ kind: "conversation", id: "#room" });
@@ -368,6 +370,7 @@ describe("sendMessageIrc cfg threading", () => {
             to: "#room",
             text: "image",
             mediaUrl: "https://example.com/image.png",
+            onPlatformSendDispatch,
           });
           expect(result?.receipt.platformMessageIds).toEqual(["irc-msg-1"]);
           expect(client.join).toHaveBeenCalledWith("#room");
@@ -382,10 +385,16 @@ describe("sendMessageIrc cfg threading", () => {
             to: "#room",
             text: "threaded",
             replyToId: "parent-1",
+            onPlatformSendDispatch,
           });
           expect(result?.receipt.replyToId).toBe("parent-1");
           expect(client.join).toHaveBeenCalledWith("#room");
           expect(client.sendPrivmsg).toHaveBeenCalledWith("#room", "threaded\n\n[reply:parent-1]");
+        },
+        preDispatchAuthorization: () => {
+          expect(ircMessageAdapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -393,5 +402,6 @@ describe("sendMessageIrc cfg threading", () => {
     expect(proofResults.find((result) => result.capability === "text")?.status).toBe("verified");
     expect(proofResults.find((result) => result.capability === "media")?.status).toBe("verified");
     expect(proofResults.find((result) => result.capability === "replyTo")?.status).toBe("verified");
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(3);
   });
 });

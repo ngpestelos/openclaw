@@ -277,12 +277,14 @@ describe("Synology Chat client loopback", () => {
       cfg,
       text: "durable adapter text",
       to: "42",
+      onPlatformSendDispatch: async () => {},
     });
     const durableMedia = await synologyChatPlugin.message.send?.media?.({
       cfg,
       text: "durable adapter media",
       mediaUrl,
       to: "42",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(receivedPayloads).toEqual([
@@ -340,7 +342,12 @@ describe("Synology Chat client loopback", () => {
     const text = "x".repeat(2_001);
 
     await synologyChatPlugin.outbound.sendText({ cfg, text, to: "42" });
-    await synologyChatPlugin.message.send?.text?.({ cfg, text, to: "42" });
+    await synologyChatPlugin.message.send?.text?.({
+      cfg,
+      text,
+      to: "42",
+      onPlatformSendDispatch: async () => {},
+    });
     await sendMessage(incomingUrl, text, "42");
 
     expect(receivedPayloads).toHaveLength(6);

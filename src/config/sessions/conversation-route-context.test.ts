@@ -106,4 +106,31 @@ describe("session route context provenance", () => {
     expect(inspectConversationRouteContextFromSessionEntry(unstampedEmpty)).toBeUndefined();
     expect(unstampedEmpty.conversationRouteContextFingerprint).toBeUndefined();
   });
+
+  it("invalidates route facts when the canonical delivery identity changes", () => {
+    const previousEntry: InternalSessionEntry = {
+      ...createEntry(),
+      delivery: {
+        kind: "external",
+        route: { channel: "discord", target: { to: "channel-a" } },
+        context: { channel: "discord", to: "channel-a" },
+        origin: { provider: "discord", to: "channel-a" },
+      },
+    };
+    stampConversationRouteContext(previousEntry);
+
+    const entry: InternalSessionEntry = {
+      ...previousEntry,
+      delivery: {
+        kind: "external",
+        route: { channel: "discord", target: { to: "channel-b" } },
+        context: { channel: "discord", to: "channel-b" },
+        origin: { provider: "discord", to: "channel-b" },
+      },
+    };
+    reconcileConversationRouteContext(entry, previousEntry);
+
+    expect(entry.conversationRouteContext).toBeUndefined();
+    expect(entry.conversationRouteContextFingerprint).toBeUndefined();
+  });
 });

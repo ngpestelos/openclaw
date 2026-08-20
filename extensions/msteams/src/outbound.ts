@@ -102,6 +102,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
       media: true,
       payload: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   presentationCapabilities: MSTEAMS_PRESENTATION_CAPABILITIES,

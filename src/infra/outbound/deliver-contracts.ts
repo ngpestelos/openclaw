@@ -1,9 +1,11 @@
 import type { ExecutionIdentityAdmissionToken } from "../../audit/execution-identity-admission.js";
 // Shared type contracts for outbound planning, queueing, and transport.
 import type { ReplyPayload } from "../../auto-reply/types.js";
-import type { OutboundReplyFacts } from "../../channels/message/types.js";
 import type {
-  ChannelDeliveryCapabilities,
+  DurableFinalDeliveryCapability,
+  OutboundReplyFacts,
+} from "../../channels/message/types.js";
+import type {
   ChannelOutboundAdapter,
   ChannelOutboundTargetRef,
 } from "../../channels/plugins/types.adapters.js";
@@ -38,9 +40,7 @@ export type OutboundDeliveryIntent = {
   queuePolicy: OutboundDeliveryQueuePolicy;
 };
 
-export type DurableFinalDeliveryRequirement = keyof NonNullable<
-  ChannelDeliveryCapabilities["durableFinal"]
->;
+export type DurableFinalDeliveryRequirement = DurableFinalDeliveryCapability;
 
 export type DurableFinalDeliveryRequirements = Partial<
   Record<DurableFinalDeliveryRequirement, boolean>
@@ -144,6 +144,8 @@ export type ChannelHandlerParams = {
   deliveryQueueId?: string;
   preparedMessageId?: string;
   requiredUnknownSendReconciliation?: boolean;
+  /** Require a V2 adapter that revalidates authorization at final platform dispatch. */
+  requirePreDispatchAuthorization?: boolean;
   onPlatformSendStart?: (route: PlatformSendRoute) => Promise<void>;
   onPlatformSendDispatch?: () => Promise<void>;
   onDeliveryResult?: (result: OutboundDeliveryResult) => Promise<void> | void;

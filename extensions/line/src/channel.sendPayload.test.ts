@@ -970,6 +970,7 @@ describe("line outbound sendPayload", () => {
             to: "line:user:U123",
             text: "hello",
             accountId: "primary",
+            onPlatformSendDispatch: async () => {},
           });
           expect(mocks.pushMessageLine).toHaveBeenCalledWith("line:user:U123", "hello", {
             verbose: false,
@@ -985,6 +986,7 @@ describe("line outbound sendPayload", () => {
             text: "image",
             mediaUrl: "https://example.com/image.jpg",
             accountId: "primary",
+            onPlatformSendDispatch: async () => {},
           });
           expect(mocks.sendMessageLine).toHaveBeenCalledWith("line:user:U123", "", {
             verbose: false,
@@ -996,6 +998,11 @@ describe("line outbound sendPayload", () => {
         },
         messageSendingHooks: () => {
           expect(linePlugin.message?.send?.text).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(linePlugin.message?.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

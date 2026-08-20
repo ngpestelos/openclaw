@@ -1,7 +1,7 @@
 // Zalouser plugin module implements channel.adapters behavior.
 import { createScopedDmSecurityResolver } from "openclaw/plugin-sdk/channel-config-helpers";
 import {
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageSendResult,
 } from "openclaw/plugin-sdk/channel-outbound";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
@@ -217,13 +217,14 @@ const zalouserRawSendResultAdapter: Pick<ChannelOutboundAdapter, "sendText" | "s
     ),
 };
 
-export const zalouserMessageAdapter = defineChannelMessageAdapter({
+export const zalouserMessageAdapter = defineChannelMessageAdapterV2({
   id: "zalouser",
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

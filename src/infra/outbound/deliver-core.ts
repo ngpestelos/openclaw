@@ -93,6 +93,7 @@ export async function deliverOutboundPayloadsCore(
       deliveryQueueId: params.deliveryQueueId,
       preparedMessageId: params.preparedMessageId,
       requiredUnknownSendReconciliation: params.requiredUnknownSendReconciliation,
+      requirePreDispatchAuthorization: params.deliveryCompletion?.kind === "conversation",
       onPlatformSendStart: async (route) => {
         // Channel handlers can fan one logical payload into multiple sends.
         // Carry its source index without polluting the persisted platform route.

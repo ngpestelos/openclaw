@@ -380,7 +380,40 @@ describe("sendMessage", () => {
     expect(onDeliveryIntent).toHaveBeenCalledWith(
       expect.objectContaining({ id: "queue-1", durability: "required" }),
     );
-    expect(mocks.resolveOutboundDurableFinalDeliverySupport).not.toHaveBeenCalled();
+    expect(mocks.resolveOutboundDurableFinalDeliverySupport).toHaveBeenCalledWith({
+      cfg: {},
+      agentId: undefined,
+      channel: "forum",
+      requirements: {
+        text: true,
+        preDispatchAuthorization: true,
+      },
+    });
+  });
+
+  it("rejects conversation delivery before enqueue when V2 dispatch authorization is missing", async () => {
+    mocks.resolveOutboundDurableFinalDeliverySupport.mockResolvedValueOnce({
+      ok: false,
+      reason: "capability_mismatch",
+      capability: "preDispatchAuthorization",
+    });
+
+    await expect(
+      sendMessage({
+        cfg: {},
+        channel: "forum",
+        to: "123456",
+        content: "conversation delivery",
+        requireUnknownSendReconciliation: false,
+        deliveryCompletion: {
+          kind: "conversation",
+          agentId: "main",
+          operationId: "operation-v1",
+        },
+      }),
+    ).rejects.toThrow(/missing preDispatchAuthorization[\s\S]*V2 message adapter/);
+
+    expect(mocks.deliverOutboundPayloads).not.toHaveBeenCalled();
   });
 
   it("rejects required durable sends before enqueue when replay safety is unsupported", async () => {

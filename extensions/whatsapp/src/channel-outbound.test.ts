@@ -549,6 +549,7 @@ describe("whatsappChannelOutbound", () => {
             cfg: {} as never,
             to: "5511999999999@c.us",
             text: "hello",
+            onPlatformSendDispatch: async () => {},
             deps: { whatsapp: sendWhatsApp },
           } as Parameters<NonNullable<typeof whatsappMessageAdapter.send.text>>[0] & {
             deps: { whatsapp: typeof sendWhatsApp };
@@ -558,7 +559,7 @@ describe("whatsappChannelOutbound", () => {
             cfg: {},
             accountId: undefined,
             gifPlayback: undefined,
-            quotedMessageKey: undefined,
+            onPlatformSendDispatch: expect.any(Function),
           });
           expect(result?.receipt.platformMessageIds).toEqual(["wa-1"]);
         },
@@ -568,6 +569,7 @@ describe("whatsappChannelOutbound", () => {
             to: "5511999999999@c.us",
             text: "reply",
             replyToId: "msg-1",
+            onPlatformSendDispatch: async () => {},
             deps: { whatsapp: sendWhatsApp },
           } as Parameters<NonNullable<typeof whatsappMessageAdapter.send.text>>[0] & {
             deps: { whatsapp: typeof sendWhatsApp };
@@ -593,12 +595,18 @@ describe("whatsappChannelOutbound", () => {
                 messageText: undefined,
               },
               preserveLeadingWhitespace: true,
+              onPlatformSendDispatch: expect.any(Function),
             },
           );
           expect(result?.receipt.platformMessageIds).toEqual(["wa-1"]);
         },
         messageSendingHooks: () => {
           expect(whatsappMessageAdapter.send.text).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(whatsappMessageAdapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

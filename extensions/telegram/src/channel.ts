@@ -13,7 +13,7 @@ import {
 } from "openclaw/plugin-sdk/channel-core";
 import {
   createAccountStatusSink,
-  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
   resolveOutboundSendDep,
   type OutboundSendDeps,
 } from "openclaw/plugin-sdk/channel-outbound";
@@ -259,8 +259,12 @@ const telegramChannelOutbound = createTelegramOutboundAdapter({
   preferFinalAssistantVisibleText: true,
 });
 
-const telegramMessageAdapter = createChannelMessageAdapterFromOutbound<OpenClawConfig>({
+const telegramMessageAdapter = createChannelMessageAdapterFromOutboundV2<OpenClawConfig>({
   id: "telegram",
+  capabilities: {
+    ...telegramChannelOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
   live: {
     capabilities: {
       draftPreview: true,

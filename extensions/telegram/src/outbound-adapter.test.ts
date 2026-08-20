@@ -864,6 +864,11 @@ describe("telegramOutbound", () => {
         messageSendingHooks: () => {
           expect(telegramOutbound.sendText).toBeTypeOf("function");
         },
+        preDispatchAuthorization: () => {
+          expect(
+            telegramOutbound.deliveryCapabilities?.durableFinal?.preDispatchAuthorization,
+          ).toBe(true);
+        },
         batch: proveBatch,
       },
     });

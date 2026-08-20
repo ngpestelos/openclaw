@@ -7,10 +7,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { TrustedMessageAuditEvent } from "../../audit/message-audit-events.js";
 import { onTrustedMessageAuditEventForTest as onTrustedMessageAuditEvent } from "../../audit/message-audit-events.test-support.js";
 import { chunkText } from "../../auto-reply/chunk.js";
+import { createChannelMessageAdapterFromOutboundV2 } from "../../channels/message/outbound-bridge.js";
 import { createMessageReceiptFromOutboundResults } from "../../channels/message/receipt.js";
 import type {
   ChannelMessageSendMediaContext,
   ChannelMessageSendTextContext,
+  ChannelMessageSendTextContextV2,
 } from "../../channels/message/types.js";
 import type { ChannelOutboundAdapter, ChannelPlugin } from "../../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -329,14 +331,16 @@ const matrixOutboundForTest: ChannelOutboundAdapter = {
   chunkerMode: "text",
   textChunkLimit: 4000,
   sanitizeText: ({ text }) => (text === "<br>" || text === "<br><br>" ? "" : text),
-  sendText: async ({ cfg, to, text, accountId, deps, gifPlayback }) =>
-    withMatrixChannel(
+  sendText: async ({ cfg, to, text, accountId, deps, gifPlayback, onPlatformSendDispatch }) => {
+    await onPlatformSendDispatch?.();
+    return withMatrixChannel(
       await resolveMatrixSender(deps)(to, text, {
         cfg,
         accountId: accountId ?? undefined,
         gifPlayback,
       }),
-    ),
+    );
+  },
   sendMedia: async ({
     cfg,
     to,
@@ -347,8 +351,10 @@ const matrixOutboundForTest: ChannelOutboundAdapter = {
     accountId,
     deps,
     gifPlayback,
-  }) =>
-    withMatrixChannel(
+    onPlatformSendDispatch,
+  }) => {
+    await onPlatformSendDispatch?.();
+    return withMatrixChannel(
       await resolveMatrixSender(deps)(to, text, {
         cfg,
         mediaUrl,
@@ -357,7 +363,8 @@ const matrixOutboundForTest: ChannelOutboundAdapter = {
         accountId: accountId ?? undefined,
         gifPlayback,
       }),
-    ),
+    );
+  },
 };
 
 type MatrixDeliveryArgs = Omit<DeliverOutboundArgs, "cfg" | "channel" | "to" | "payloads"> &
@@ -370,6 +377,21 @@ function deliverMatrix(params: MatrixDeliveryArgs) {
     to: "!room:example",
     payloads: [{ text: "hello" }],
     ...params,
+  });
+}
+
+function setMatrixV2Outbound() {
+  setTestPlugin({
+    ...createOutboundTestPlugin({ id: "matrix", outbound: matrixOutboundForTest }),
+    message: createChannelMessageAdapterFromOutboundV2({
+      id: "matrix",
+      outbound: matrixOutboundForTest,
+      capabilities: {
+        text: true,
+        media: true,
+        preDispatchAuthorization: true,
+      },
+    }),
   });
 }
 
@@ -618,6 +640,41 @@ describe("deliverOutboundPayloads", () => {
     ).resolves.toEqual({ ok: true, automaticUnknownSendReconciliation: false });
   });
 
+  it("does not accept a legacy outbound capability as the V2 adapter contract", async () => {
+    const v1Adapter = {
+      id: "matrix",
+      durableFinal: {
+        capabilities: { text: true },
+      },
+      send: {
+        text: async () => ({
+          receipt: createMessageReceiptFromOutboundResults({
+            results: [{ channel: "matrix", messageId: "message" }],
+            kind: "text",
+          }),
+        }),
+      },
+    } satisfies NonNullable<ChannelPlugin["message"]>;
+    setMatrixMessageAdapter(v1Adapter, {
+      sendText: async () => ({ channel: "matrix", messageId: "legacy" }),
+      deliveryCapabilities: {
+        durableFinal: { text: true, preDispatchAuthorization: true },
+      },
+    });
+
+    await expect(
+      resolveOutboundDurableFinalDeliverySupport({
+        cfg: {},
+        channel: "matrix",
+        requirements: { text: true, preDispatchAuthorization: true },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: "capability_mismatch",
+      capability: "preDispatchAuthorization",
+    });
+  });
+
   it("requires a real reconciler for required unknown-send recovery support", async () => {
     setMatrixMessageAdapter(
       {
@@ -860,6 +917,7 @@ describe("deliverOutboundPayloads", () => {
       durableFinal: {
         capabilities: {
           text: true,
+          preDispatchAuthorization: true,
           reconcileUnknownSend: true,
           afterSendSuccess: true,
           afterCommit: true,
@@ -1061,6 +1119,7 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("finalizes owner state only after a chunked batch completes", async () => {
+    setMatrixV2Outbound();
     const sendMatrix = vi
       .fn()
       .mockResolvedValueOnce({ messageId: "chunk-1" })
@@ -1088,6 +1147,7 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("persists owner suppression before acknowledging its durable intent", async () => {
+    setMatrixV2Outbound();
     const order: string[] = [];
     queueMocks.enqueueDelivery.mockImplementationOnce(async () => {
       order.push("queue");
@@ -1581,6 +1641,7 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("keeps cancellation metadata live but out of durable prepared custody", async () => {
+    setMatrixV2Outbound();
     hookMocks.runner.hasHooks.mockImplementation(
       (hookName?: string) => hookName === "message_sending",
     );
@@ -2192,6 +2253,7 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("terminally retires a permanent provider rejection before platform dispatch", async () => {
+    setMatrixV2Outbound();
     const order: string[] = [];
     hookMocks.runner.hasHooks.mockImplementation((name?: string) => name === "message_sent");
     hookMocks.runner.runMessageSent.mockImplementationOnce(async () => {
@@ -2260,7 +2322,7 @@ describe("deliverOutboundPayloads", () => {
     });
     setMatrixMessageAdapter({
       id: "matrix",
-      durableFinal: { capabilities: { text: true } },
+      durableFinal: { capabilities: { text: true, preDispatchAuthorization: true } },
       send: { text: messageSendText },
     });
     completionMocks.rejectDurableDelivery.mockImplementationOnce(() => {
@@ -2295,6 +2357,125 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
+  it("rejects recovered conversation delivery through a V1 adapter before provider I/O", async () => {
+    const messageSendText = vi.fn();
+    const outboundSendText = vi.fn();
+    setMatrixMessageAdapter(
+      {
+        id: "matrix",
+        durableFinal: { capabilities: { text: true } },
+        send: { text: messageSendText },
+      },
+      { sendText: outboundSendText },
+    );
+
+    await expect(
+      deliverOutboundPayloadsInternal({
+        cfg: {},
+        channel: "matrix",
+        to: "!room:example",
+        payloads: [{ text: "recovered" }],
+        deliveryCompletion: {
+          kind: "conversation",
+          agentId: "main",
+          operationId: "operation-recovered-v1",
+        },
+        onPlatformSendDispatch: async () => undefined,
+      }),
+    ).rejects.toThrow("requires a V2 message adapter");
+
+    expect(messageSendText).not.toHaveBeenCalled();
+    expect(outboundSendText).not.toHaveBeenCalled();
+  });
+
+  it("revokes a V2 dispatch authorization callback when its adapter send settles", async () => {
+    let retainedDispatch: (() => Promise<void>) | undefined;
+    const providerSend = vi.fn();
+    const authorize = vi.fn(async () => undefined);
+    setMatrixMessageAdapter({
+      id: "matrix",
+      durableFinal: { capabilities: { text: true, preDispatchAuthorization: true } },
+      send: {
+        text: async (ctx: ChannelMessageSendTextContextV2) => {
+          retainedDispatch = ctx.onPlatformSendDispatch;
+          await ctx.onPlatformSendDispatch();
+          providerSend();
+          return {
+            receipt: createMessageReceiptFromOutboundResults({
+              results: [{ channel: "matrix", messageId: "authorized" }],
+              kind: "text",
+            }),
+          };
+        },
+      },
+    });
+
+    await deliverOutboundPayloadsInternal({
+      cfg: {},
+      channel: "matrix",
+      to: "!room:example",
+      payloads: [{ text: "authorized" }],
+      deliveryCompletion: {
+        kind: "conversation",
+        agentId: "main",
+        operationId: "operation-authorized-v2",
+      },
+      onPlatformSendDispatch: authorize,
+    });
+
+    expect(authorize).toHaveBeenCalledOnce();
+    expect(providerSend).toHaveBeenCalledOnce();
+    const expiredDispatch = expectDefined(retainedDispatch, "adapter retained dispatch callback");
+    await expect(expiredDispatch()).rejects.toThrow("authorization expired");
+    expect(authorize).toHaveBeenCalledOnce();
+  });
+
+  it("rejects retained V2 authorization that settles after the adapter send", async () => {
+    let retainedAuthorization: Promise<void> | undefined;
+    let releaseAuthorization: (() => void) | undefined;
+    const authorize = vi.fn(
+      async () =>
+        await new Promise<void>((resolve) => {
+          releaseAuthorization = resolve;
+        }),
+    );
+    setMatrixMessageAdapter({
+      id: "matrix",
+      durableFinal: { capabilities: { text: true, preDispatchAuthorization: true } },
+      send: {
+        text: async (ctx: ChannelMessageSendTextContextV2) => {
+          retainedAuthorization = ctx.onPlatformSendDispatch();
+          return {
+            receipt: createMessageReceiptFromOutboundResults({
+              results: [{ channel: "matrix", messageId: "settled-before-authorization" }],
+              kind: "text",
+            }),
+          };
+        },
+      },
+    });
+
+    await deliverOutboundPayloadsInternal({
+      cfg: {},
+      channel: "matrix",
+      to: "!room:example",
+      payloads: [{ text: "late authorization" }],
+      deliveryCompletion: {
+        kind: "conversation",
+        agentId: "main",
+        operationId: "operation-late-authorization",
+      },
+      onPlatformSendDispatch: authorize,
+    });
+
+    await vi.waitFor(() => expect(authorize).toHaveBeenCalledOnce());
+    const rejection = expect(
+      expectDefined(retainedAuthorization, "retained authorization promise"),
+    ).rejects.toThrow("authorization expired during revalidation");
+    expectDefined(releaseAuthorization, "authorization release")();
+    await rejection;
+  });
+
   it("retains queued custody while the route owner is temporarily unavailable", async () => {
     const rejection = new PlatformMessageNotDispatchedError(
       "conversation ownership is temporarily unavailable",
@@ -2303,7 +2484,7 @@ describe("deliverOutboundPayloads", () => {
     const providerSend = vi.fn();
     setMatrixMessageAdapter({
       id: "matrix",
-      durableFinal: { capabilities: { text: true } },
+      durableFinal: { capabilities: { text: true, preDispatchAuthorization: true } },
       send: {
         text: async (ctx: ChannelMessageSendTextContext) => {
           await ctx.onPlatformSendDispatch?.();
@@ -2343,6 +2524,7 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("normalizes an empty permanent rejection reason before durable retirement", async () => {
+    setMatrixV2Outbound();
     const sendMatrix = vi.fn().mockRejectedValueOnce(
       new PlatformMessageNotDispatchedError("   ", {
         cause: new Error("provider rejected the rendered payload"),

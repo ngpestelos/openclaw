@@ -2,9 +2,13 @@
  * Tests channel message helper behavior and mocked runtime interactions.
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { defineChannelMessageAdapter as defineCoreChannelMessageAdapter } from "../channels/message/adapter.js";
+import {
+  defineChannelMessageAdapter as defineCoreChannelMessageAdapter,
+  defineChannelMessageAdapterV2 as defineCoreChannelMessageAdapterV2,
+} from "../channels/message/adapter.js";
 import {
   defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageDurableFinalAdapter,
 } from "./channel-outbound.js";
 
@@ -36,6 +40,7 @@ describe("defineChannelMessageAdapter", () => {
     );
     expect(channelMessage.createTypingCallbacks).toBe(channelReplyPipeline.createTypingCallbacks);
     expect(channelOutbound.defineChannelMessageAdapter).toBe(defineCoreChannelMessageAdapter);
+    expect(channelOutbound.defineChannelMessageAdapterV2).toBe(defineCoreChannelMessageAdapterV2);
   });
 
   it("preserves legacy count-shaped dispatch projections", () => {
@@ -92,6 +97,23 @@ describe("defineChannelMessageAdapter", () => {
       defaultAckPolicy: "manual",
       supportedAckPolicies: ["manual"],
     });
+  });
+
+  it("defines the V2 required dispatch capability", () => {
+    const adapter = defineChannelMessageAdapterV2({
+      id: "demo",
+      durableFinal: { capabilities: { text: true, preDispatchAuthorization: true } },
+      send: {
+        text: async ({ onPlatformSendDispatch }) => {
+          await onPlatformSendDispatch();
+          return {
+            receipt: { platformMessageIds: [], parts: [], sentAt: 123 },
+          };
+        },
+      },
+    });
+
+    expect(adapter.durableFinal.capabilities.preDispatchAuthorization).toBe(true);
   });
 
   it("preserves explicit receive acknowledgement policy declarations", () => {

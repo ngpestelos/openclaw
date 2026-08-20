@@ -216,6 +216,7 @@ export const buzzOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   sendText: async ({

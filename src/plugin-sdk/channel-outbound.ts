@@ -160,8 +160,14 @@ export type {
   ChannelProgressDraftCompositorSnapshot,
 } from "../channels/progress-draft-compositor.js";
 export { deriveDurableFinalDeliveryRequirements } from "../channels/message/capabilities.js";
-export { defineChannelMessageAdapter } from "../channels/message/adapter.js";
-export { createChannelMessageAdapterFromOutbound } from "../channels/message/outbound-bridge.js";
+export {
+  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
+} from "../channels/message/adapter.js";
+export {
+  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
+} from "../channels/message/outbound-bridge.js";
 export { createDurableInboundReceiveJournalFromQueue } from "../channels/message/durable-receive.js";
 export {
   verifyChannelMessageAdapterCapabilityProofs,
@@ -195,12 +201,20 @@ export type {
 } from "../channels/message/ingress-queue.js";
 export type { MessageAckPolicy, MessageReceiveContext } from "../channels/message/receive.js";
 export type {
+  AnyChannelMessageAdapterShape,
   ChannelMessageAdapterShape,
+  ChannelMessageAdapterShapeV2,
   ChannelMessageDurableFinalAdapter,
+  ChannelMessageDurableFinalAdapterV2,
   ChannelMessageSendMediaContext,
+  ChannelMessageSendMediaContextV2,
   ChannelMessageSendPayloadContext,
+  ChannelMessageSendPayloadContextV2,
+  ChannelMessageSendPollContext,
+  ChannelMessageSendPollContextV2,
   ChannelMessageSendResult,
   ChannelMessageSendTextContext,
+  ChannelMessageSendTextContextV2,
   ChannelMessageUnknownSendContext,
   ChannelMessageUnknownSendReconciliationResult,
   MessageReceipt,

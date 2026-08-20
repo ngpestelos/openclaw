@@ -123,6 +123,7 @@ describe("msteamsOutbound cfg threading", () => {
       media: true,
       payload: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     });
   });
 

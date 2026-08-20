@@ -7,6 +7,8 @@ import {
   sendDurableMessageBatch,
   verifyChannelMessageAdapterCapabilityProofs,
   verifyDurableFinalCapabilityProofs,
+  type ChannelMessageSendMediaContext,
+  type ChannelMessageSendTextContext,
 } from "openclaw/plugin-sdk/channel-outbound";
 import {
   createTestRegistry,
@@ -33,7 +35,6 @@ beforeEach(() => {
 
 type IMessageOutbound = NonNullable<typeof imessagePlugin.outbound>;
 type IMessageMessageAdapter = NonNullable<typeof imessagePlugin.message>;
-type IMessageMessageSender = NonNullable<IMessageMessageAdapter["send"]>;
 const IMESSAGE_WORKSPACE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
   "base64",
@@ -75,24 +76,28 @@ function requireMessageAdapter(): IMessageMessageAdapter {
   return adapter;
 }
 
-function requireMessageSendText(
-  adapter: IMessageMessageAdapter,
-): NonNullable<IMessageMessageSender["text"]> {
+function requireMessageSendText(adapter: IMessageMessageAdapter) {
   const text = adapter.send?.text;
   if (!text) {
     throw new Error("Expected iMessage message adapter text sender");
   }
-  return text;
+  return async (ctx: ChannelMessageSendTextContext) =>
+    await text({
+      ...ctx,
+      onPlatformSendDispatch: ctx.onPlatformSendDispatch ?? (async () => {}),
+    });
 }
 
-function requireMessageSendMedia(
-  adapter: IMessageMessageAdapter,
-): NonNullable<IMessageMessageSender["media"]> {
+function requireMessageSendMedia(adapter: IMessageMessageAdapter) {
   const media = adapter.send?.media;
   if (!media) {
     throw new Error("Expected iMessage message adapter media sender");
   }
-  return media;
+  return async (ctx: ChannelMessageSendMediaContext) =>
+    await media({
+      ...ctx,
+      onPlatformSendDispatch: ctx.onPlatformSendDispatch ?? (async () => {}),
+    });
 }
 
 describe("imessagePlugin contracts", () => {
@@ -179,6 +184,7 @@ describe("imessagePlugin contracts", () => {
       media: true,
       replyTo: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     });
   });
 
@@ -374,6 +380,9 @@ describe("imessagePlugin contracts", () => {
           ).rejects.toBe(rejection);
           expect(providerWrite).not.toHaveBeenCalled();
         },
+        preDispatchAuthorization: () => {
+          expect(outbound.deliveryCapabilities?.durableFinal?.preDispatchAuthorization).toBe(true);
+        },
       },
     });
   });
@@ -466,6 +475,11 @@ describe("imessagePlugin contracts", () => {
             }),
           ).rejects.toBe(rejection);
           expect(providerWrite).not.toHaveBeenCalled();
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

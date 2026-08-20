@@ -146,6 +146,7 @@ export function createWhatsAppOutboundBase({
         text: true,
         replyTo: true,
         messageSendingHooks: true,
+        preDispatchAuthorization: true,
       },
     },
     pollMaxOptions: 12,

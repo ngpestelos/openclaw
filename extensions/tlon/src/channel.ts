@@ -4,7 +4,7 @@ import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import { createHybridChannelConfigAdapter } from "openclaw/plugin-sdk/channel-config-helpers";
 import { createChatChannelPlugin, type ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
-  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
   createRuntimeOutboundDelegates,
 } from "openclaw/plugin-sdk/channel-outbound";
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
@@ -81,6 +81,7 @@ const tlonChannelOutbound: ChannelOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   ...createRuntimeOutboundDelegates({
@@ -90,9 +91,13 @@ const tlonChannelOutbound: ChannelOutboundAdapter = {
   }),
 };
 
-const tlonMessageAdapter = createChannelMessageAdapterFromOutbound({
+const tlonMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: TLON_CHANNEL_ID,
   outbound: tlonChannelOutbound,
+  capabilities: {
+    ...tlonChannelOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
 });
 
 export const tlonPlugin = createChatChannelPlugin({

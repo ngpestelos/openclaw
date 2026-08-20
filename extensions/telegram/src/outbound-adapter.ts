@@ -489,6 +489,7 @@ export function createTelegramOutboundAdapter(
         thread: true,
         nativeQuote: false,
         messageSendingHooks: true,
+        preDispatchAuthorization: true,
         batch: true,
       },
     },

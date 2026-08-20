@@ -90,7 +90,9 @@ export function deriveDurableFinalDeliveryRequirementsForBatch(params: {
   replyToId?: string | null;
   threadId?: string | number | null;
   silent?: boolean;
+  messageSendingHooks?: boolean;
   reconcileUnknownSend?: boolean;
+  extraCapabilities?: DurableFinalDeliveryRequirementMap;
 }): DurableFinalDeliveryRequirementMap {
   // Preserve the public preflight diagnostic: exact delivery first reports
   // missing reconciliation before secondary transport capabilities.
@@ -102,9 +104,11 @@ export function deriveDurableFinalDeliveryRequirementsForBatch(params: {
       replyToId: params.replyToId,
       threadId: params.threadId,
       silent: params.silent,
+      messageSendingHooks: params.messageSendingHooks,
       payloadTransport: payloadRequiresDurablePayloadTransport(payload),
       batch: params.payloads.length > 1,
       reconcileUnknownSend: params.reconcileUnknownSend,
+      extraCapabilities: params.extraCapabilities,
     });
     for (const [capability, required] of Object.entries(current) as Array<
       [DurableFinalDeliveryCapability, boolean | undefined]

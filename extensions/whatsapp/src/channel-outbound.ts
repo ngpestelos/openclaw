@@ -1,7 +1,7 @@
 // Whatsapp plugin module implements channel outbound behavior.
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageSendResult,
 } from "openclaw/plugin-sdk/channel-outbound";
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
@@ -106,13 +106,14 @@ function toWhatsAppMessageSendResult(
   };
 }
 
-export const whatsappMessageAdapter = defineChannelMessageAdapter({
+export const whatsappMessageAdapter = defineChannelMessageAdapterV2({
   id: "whatsapp",
   durableFinal: {
     capabilities: {
       text: true,
       replyTo: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

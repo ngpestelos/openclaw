@@ -6,6 +6,7 @@
 import { createMessageReceiptFromOutboundResults, resolveReceiptSourceId } from "./receipt.js";
 import type {
   ChannelMessageAdapterShape,
+  ChannelMessageAdapterShapeV2,
   ChannelMessageLiveAdapterShape,
   ChannelMessageReceiveAdapterShape,
   ChannelMessageSendMediaContext,
@@ -14,6 +15,7 @@ import type {
   ChannelMessageSendResult,
   ChannelMessageSendTextContext,
   DurableFinalDeliveryRequirementMap,
+  DurableFinalDeliveryRequirementMapV1,
   MessageReceipt,
   MessageReceiptPartKind,
   MessageReceiptSourceResult,
@@ -57,9 +59,19 @@ type ChannelMessageOutboundBridgeAdapter<TConfig = unknown> = {
 type CreateChannelMessageAdapterFromOutboundParams<TConfig = unknown> = {
   id?: string;
   outbound: ChannelMessageOutboundBridgeAdapter<TConfig>;
-  capabilities?: DurableFinalDeliveryRequirementMap;
+  capabilities?: DurableFinalDeliveryRequirementMapV1;
   live?: ChannelMessageLiveAdapterShape;
   receive?: ChannelMessageReceiveAdapterShape;
+};
+
+/** V2 bridge options require an explicit final-dispatch authorization attestation. */
+type CreateChannelMessageAdapterFromOutboundV2Params<TConfig = unknown> = Omit<
+  CreateChannelMessageAdapterFromOutboundParams<TConfig>,
+  "capabilities"
+> & {
+  capabilities: DurableFinalDeliveryRequirementMap & {
+    preDispatchAuthorization: true;
+  };
 };
 
 type MessageSendResultParams = {
@@ -232,5 +244,22 @@ export function createChannelMessageAdapterFromOutbound<TConfig = unknown>(
     send,
     ...(params.live ? { live: params.live } : {}),
     receive: params.receive ?? defaultManualReceiveAdapter,
+  };
+}
+
+/** Converts legacy outbound methods into a V2 message adapter with required dispatch fencing. */
+export function createChannelMessageAdapterFromOutboundV2<TConfig = unknown>(
+  params: CreateChannelMessageAdapterFromOutboundV2Params<TConfig>,
+): ChannelMessageAdapterShapeV2<TConfig> {
+  const adapter = createChannelMessageAdapterFromOutbound({
+    ...params,
+    capabilities: params.capabilities,
+  });
+  return {
+    ...adapter,
+    durableFinal: {
+      ...adapter.durableFinal,
+      capabilities: params.capabilities,
+    },
   };
 }

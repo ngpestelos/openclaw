@@ -1,4 +1,4 @@
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
 import type { matrixChannelRuntime } from "./channel.runtime.js";
 
@@ -6,9 +6,13 @@ export function createMatrixMessageAdapter(params: {
   outbound: ChannelOutboundAdapter;
   getRuntime: () => Promise<typeof matrixChannelRuntime>;
 }) {
-  const base = createChannelMessageAdapterFromOutbound({
+  const base = createChannelMessageAdapterFromOutboundV2({
     id: "matrix",
     outbound: params.outbound,
+    capabilities: {
+      ...params.outbound.deliveryCapabilities?.durableFinal,
+      preDispatchAuthorization: true,
+    },
     live: {
       capabilities: {
         draftPreview: true,
@@ -36,6 +40,7 @@ export function createMatrixMessageAdapter(params: {
         ...base.durableFinal?.capabilities,
         afterCommit: true,
         reconcileUnknownSend: true,
+        preDispatchAuthorization: true,
       },
       reconcileUnknownSendKinds: { text: true, media: true },
       reconcileUnknownSend: async (ctx) =>

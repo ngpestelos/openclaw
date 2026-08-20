@@ -4,7 +4,7 @@ import {
   verifyChannelMessageLiveCapabilityAdapterProofs,
   verifyChannelMessageLiveFinalizerProofs,
 } from "openclaw/plugin-sdk/channel-outbound";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDiscordOutboundHoisted,
   installDiscordOutboundModuleSpies,
@@ -82,6 +82,7 @@ describe("discord channel message adapter", () => {
     const sendMedia = requireMediaSender(adapter);
     const sendPayload = requirePayloadSender(adapter);
     const sendPoll = requirePollSender(adapter);
+    const onPlatformSendDispatch = vi.fn(async () => {});
 
     const proveText = async () => {
       resetDiscordOutboundMocks(hoisted);
@@ -90,11 +91,14 @@ describe("discord channel message adapter", () => {
         to: "channel:123456",
         text: "hello",
         accountId: "default",
+        onPlatformSendDispatch,
       });
       expect(hoisted.sendMessageDiscordMock).toHaveBeenLastCalledWith("channel:123456", "hello", {
         verbose: false,
         reply: undefined,
         accountId: "default",
+        onPlatformSendDispatch,
+        onDeliveryResult: undefined,
         silent: undefined,
         cfg: {},
         textLimit: undefined,
@@ -114,6 +118,7 @@ describe("discord channel message adapter", () => {
         text: "caption",
         mediaUrl: "https://example.com/a.png",
         accountId: "default",
+        onPlatformSendDispatch,
       });
       expect(hoisted.sendMessageDiscordMock).toHaveBeenLastCalledWith("channel:123456", "caption", {
         verbose: false,
@@ -129,6 +134,8 @@ describe("discord channel message adapter", () => {
         maxLinesPerMessage: undefined,
         tableMode: undefined,
         chunkMode: undefined,
+        onPlatformSendDispatch,
+        onDeliveryResult: undefined,
       });
       expect(result.receipt.parts[0]?.kind).toBe("media");
     };
@@ -141,6 +148,7 @@ describe("discord channel message adapter", () => {
         text: "payload",
         payload: { text: "payload" },
         accountId: "default",
+        onPlatformSendDispatch,
       });
       expect(hoisted.sendMessageDiscordMock).toHaveBeenLastCalledWith(
         "channel:123456",
@@ -156,6 +164,7 @@ describe("discord channel message adapter", () => {
           tableMode: undefined,
           chunkMode: undefined,
           onDeliveryResult: expect.any(Function),
+          onPlatformSendDispatch,
         }),
       );
       expect(result.receipt.platformMessageIds).toEqual(["msg-1"]);
@@ -169,6 +178,7 @@ describe("discord channel message adapter", () => {
         poll: { question: "Ship?", options: ["Yes", "No"] },
         accountId: "default",
         silent: true,
+        onPlatformSendDispatch,
       });
       expect(hoisted.sendPollDiscordMock).toHaveBeenLastCalledWith(
         "channel:123456",
@@ -177,6 +187,7 @@ describe("discord channel message adapter", () => {
           accountId: "default",
           silent: true,
           cfg: {},
+          onPlatformSendDispatch,
         },
       );
       expect(result.receipt.parts[0]?.kind).toBe("poll");
@@ -192,6 +203,7 @@ describe("discord channel message adapter", () => {
         replyToId: "reply-1",
         threadId: "thread-1",
         silent: true,
+        onPlatformSendDispatch,
       });
       expect(hoisted.sendMessageDiscordMock).toHaveBeenLastCalledWith(
         "channel:thread-1",
@@ -206,6 +218,8 @@ describe("discord channel message adapter", () => {
           maxLinesPerMessage: undefined,
           tableMode: undefined,
           chunkMode: undefined,
+          onPlatformSendDispatch,
+          onDeliveryResult: undefined,
         },
       );
       expect(result.receipt.threadId).toBe("thread-1");
@@ -225,6 +239,11 @@ describe("discord channel message adapter", () => {
         thread: proveReplyThreadSilent,
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

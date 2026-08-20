@@ -10,7 +10,7 @@ import {
   createChatChannelPlugin,
 } from "openclaw/plugin-sdk/channel-core";
 import {
-  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
   createRuntimeOutboundDelegates,
   resolveOutboundSendDep,
 } from "openclaw/plugin-sdk/channel-outbound";
@@ -487,6 +487,7 @@ const slackChannelOutbound: ChannelOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   shouldTreatDeliveredTextAsVisible: shouldTreatSlackDeliveredTextAsVisible,
@@ -580,9 +581,13 @@ const slackChannelOutbound: ChannelOutboundAdapter = {
   },
 };
 
-const slackMessageAdapterBase = createChannelMessageAdapterFromOutbound({
+const slackMessageAdapterBase = createChannelMessageAdapterFromOutboundV2({
   id: "slack",
   outbound: slackChannelOutbound,
+  capabilities: {
+    ...slackChannelOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
   live: {
     capabilities: {
       draftPreview: true,

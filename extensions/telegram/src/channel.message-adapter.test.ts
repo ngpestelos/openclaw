@@ -44,6 +44,7 @@ describe("telegram channel message adapter", () => {
         cfg: {} as never,
         to: "12345",
         text: "hello",
+        onPlatformSendDispatch: async () => {},
         deps: { sendTelegram: sendMessageTelegramMock },
       });
       expect(sendMessageTelegramMock).toHaveBeenLastCalledWith("12345", "hello", {
@@ -54,6 +55,9 @@ describe("telegram channel message adapter", () => {
         accountId: undefined,
         silent: undefined,
         gatewayClientScopes: undefined,
+        onDeliveryResult: undefined,
+        onPlatformSendDispatch: expect.any(Function),
+        tableMode: undefined,
       });
       expect(result.receipt.platformMessageIds).toEqual(["tg-text"]);
     };
@@ -66,6 +70,7 @@ describe("telegram channel message adapter", () => {
         text: "caption",
         mediaUrl: "https://example.com/a.png",
         mediaLocalRoots: ["/tmp/media"],
+        onPlatformSendDispatch: async () => {},
         deps: { sendTelegram: sendMessageTelegramMock },
       });
       expect(sendMessageTelegramMock).toHaveBeenLastCalledWith("12345", "caption", {
@@ -76,6 +81,9 @@ describe("telegram channel message adapter", () => {
         accountId: undefined,
         silent: undefined,
         gatewayClientScopes: undefined,
+        onDeliveryResult: undefined,
+        onPlatformSendDispatch: expect.any(Function),
+        tableMode: undefined,
         mediaUrl: "https://example.com/a.png",
         mediaLocalRoots: ["/tmp/media"],
         mediaReadFile: undefined,
@@ -107,6 +115,7 @@ describe("telegram channel message adapter", () => {
         replyToIdSource: "implicit",
         replyToMode: "first",
         threadId: "12",
+        onPlatformSendDispatch: async () => {},
         deps: { sendTelegram: sendMessageTelegramMock },
       });
       expect(sendMessageTelegramMock).toHaveBeenLastCalledWith("12345", "payload", {
@@ -119,6 +128,9 @@ describe("telegram channel message adapter", () => {
         accountId: undefined,
         silent: undefined,
         gatewayClientScopes: undefined,
+        onDeliveryResult: undefined,
+        onPlatformSendDispatch: expect.any(Function),
+        tableMode: undefined,
         mediaLocalRoots: undefined,
         mediaReadFile: undefined,
         forceDocument: false,
@@ -140,6 +152,7 @@ describe("telegram channel message adapter", () => {
         replyToMode: "first",
         threadId: "12",
         silent: true,
+        onPlatformSendDispatch: async () => {},
         deps: { sendTelegram: sendMessageTelegramMock },
       });
       expect(sendMessageTelegramMock).toHaveBeenLastCalledWith("12345", "threaded", {
@@ -152,6 +165,9 @@ describe("telegram channel message adapter", () => {
         accountId: undefined,
         silent: true,
         gatewayClientScopes: undefined,
+        onDeliveryResult: undefined,
+        onPlatformSendDispatch: expect.any(Function),
+        tableMode: undefined,
       });
     };
 
@@ -171,6 +187,7 @@ describe("telegram channel message adapter", () => {
           text: "batch",
           mediaUrls: ["https://example.com/a.png", "https://example.com/b.png"],
         },
+        onPlatformSendDispatch: async () => {},
         deps: { sendTelegram: sendMessageTelegramMock },
       });
       const batchCalls = sendMessageTelegramMock.mock.calls.slice(startCallCount);
@@ -187,6 +204,9 @@ describe("telegram channel message adapter", () => {
           accountId: undefined,
           silent: undefined,
           gatewayClientScopes: undefined,
+          onDeliveryResult: undefined,
+          onPlatformSendDispatch: expect.any(Function),
+          tableMode: undefined,
           mediaLocalRoots: undefined,
           mediaReadFile: undefined,
           forceDocument: false,
@@ -208,6 +228,9 @@ describe("telegram channel message adapter", () => {
           accountId: undefined,
           silent: undefined,
           gatewayClientScopes: undefined,
+          onDeliveryResult: undefined,
+          onPlatformSendDispatch: expect.any(Function),
+          tableMode: undefined,
           mediaLocalRoots: undefined,
           mediaReadFile: undefined,
           forceDocument: false,
@@ -229,6 +252,11 @@ describe("telegram channel message adapter", () => {
         thread: proveReplyThreadSilent,
         messageSendingHooks: () => {
           expect(adapter.send!.text).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
         batch: proveBatch,
       },
@@ -272,6 +300,7 @@ describe("telegram channel message adapter", () => {
         text: "batch",
         mediaUrls: ["", "https://example.com/a.png", "https://example.com/b.png"],
       },
+      onPlatformSendDispatch: async () => {},
       deps: { sendTelegram: sendMessageTelegramMock },
     });
 

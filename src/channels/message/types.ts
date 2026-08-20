@@ -28,6 +28,7 @@ export const durableFinalDeliveryCapabilities = [
   "thread",
   "nativeQuote",
   "messageSendingHooks",
+  "preDispatchAuthorization",
   "batch",
   "reconcileUnknownSend",
   "afterSendSuccess",
@@ -40,6 +41,12 @@ export type DurableFinalDeliveryCapability = (typeof durableFinalDeliveryCapabil
 /** Capability map used by adapters to declare which final-send guarantees they support. */
 export type DurableFinalDeliveryRequirementMap = Partial<
   Record<DurableFinalDeliveryCapability, boolean>
+>;
+
+/** V1 capability declarations exclude the V2-only final-dispatch authorization contract. */
+export type DurableFinalDeliveryRequirementMapV1 = Omit<
+  DurableFinalDeliveryRequirementMap,
+  "preDispatchAuthorization"
 >;
 
 /** Minimal payload facts used to derive required durable-delivery capabilities. */
@@ -236,6 +243,38 @@ export type ChannelMessageSendPollContext<TConfig = OpenClawConfig> = Omit<
   isAnonymous?: boolean;
 };
 
+/** V2 text-send context for adapters that enforce authorization at final platform dispatch. */
+export type ChannelMessageSendTextContextV2<TConfig = OpenClawConfig> = Omit<
+  ChannelMessageSendTextContext<TConfig>,
+  "onPlatformSendDispatch"
+> & {
+  onPlatformSendDispatch: () => Promise<void>;
+};
+
+/** V2 media-send context with required final-dispatch authorization. */
+export type ChannelMessageSendMediaContextV2<TConfig = OpenClawConfig> = Omit<
+  ChannelMessageSendMediaContext<TConfig>,
+  "onPlatformSendDispatch"
+> & {
+  onPlatformSendDispatch: () => Promise<void>;
+};
+
+/** V2 payload-send context with required final-dispatch authorization. */
+export type ChannelMessageSendPayloadContextV2<TConfig = OpenClawConfig> = Omit<
+  ChannelMessageSendPayloadContext<TConfig>,
+  "onPlatformSendDispatch"
+> & {
+  onPlatformSendDispatch: () => Promise<void>;
+};
+
+/** V2 poll-send context with required final-dispatch authorization. */
+export type ChannelMessageSendPollContextV2<TConfig = OpenClawConfig> = Omit<
+  ChannelMessageSendPollContext<TConfig>,
+  "onPlatformSendDispatch"
+> & {
+  onPlatformSendDispatch: () => Promise<void>;
+};
+
 /** Adapter send result normalized to a receipt plus optional legacy message id. */
 export type ChannelMessageSendResult = {
   receipt: MessageReceipt;
@@ -363,9 +402,21 @@ type ChannelMessageSendAdapter<
   lifecycle?: ChannelMessageSendLifecycleAdapter<TConfig, TSendResult>;
 };
 
+/** V2 send methods receive a mandatory, send-scoped final-dispatch authorization callback. */
+type ChannelMessageSendAdapterV2<
+  TConfig = OpenClawConfig,
+  TSendResult extends ChannelMessageSendResult = ChannelMessageSendResult,
+> = {
+  text?: (ctx: ChannelMessageSendTextContextV2<TConfig>) => Promise<TSendResult>;
+  media?: (ctx: ChannelMessageSendMediaContextV2<TConfig>) => Promise<TSendResult>;
+  payload?: (ctx: ChannelMessageSendPayloadContextV2<TConfig>) => Promise<TSendResult>;
+  poll?: (ctx: ChannelMessageSendPollContextV2<TConfig>) => Promise<TSendResult>;
+  lifecycle?: ChannelMessageSendLifecycleAdapter<TConfig, TSendResult>;
+};
+
 /** Durable final-delivery extension for queue reconciliation and capability declaration. */
 export type ChannelMessageDurableFinalAdapter = {
-  capabilities?: DurableFinalDeliveryRequirementMap;
+  capabilities?: DurableFinalDeliveryRequirementMapV1;
   /** Opt into provider reconciliation for ordinary single-payload queued sends. */
   automaticUnknownSendReconciliation?: boolean;
   /**
@@ -385,6 +436,16 @@ export type ChannelMessageDurableFinalAdapter = {
     | null;
   /** Cleanup after core authoritatively retires an ambiguous send as failed. */
   afterUnknownSendTerminal?: (ctx: ChannelMessageUnknownSendContext) => Promise<void> | void;
+};
+
+/** V2 durable-final contract attesting final-dispatch authorization support. */
+export type ChannelMessageDurableFinalAdapterV2 = Omit<
+  ChannelMessageDurableFinalAdapter,
+  "capabilities"
+> & {
+  capabilities: DurableFinalDeliveryRequirementMap & {
+    preDispatchAuthorization: true;
+  };
 };
 
 /** Live-message feature key declared by adapters that support preview or streaming behavior. */
@@ -465,9 +526,26 @@ export type ChannelMessageAdapterShape<
   receive?: ChannelMessageReceiveAdapterShape;
 };
 
+/** Message adapter contract for authorization-bearing durable conversation sends. */
+export type ChannelMessageAdapterShapeV2<
+  TConfig = OpenClawConfig,
+  TSendResult extends ChannelMessageSendResult = ChannelMessageSendResult,
+> = Omit<ChannelMessageAdapterShape<TConfig, TSendResult>, "durableFinal" | "send"> & {
+  durableFinal: ChannelMessageDurableFinalAdapterV2;
+  send?: ChannelMessageSendAdapterV2<TConfig, TSendResult>;
+};
+
+/** Either supported message-adapter contract version accepted by plugin registration. */
+export type AnyChannelMessageAdapterShape<
+  TConfig = OpenClawConfig,
+  TSendResult extends ChannelMessageSendResult = ChannelMessageSendResult,
+> =
+  | ChannelMessageAdapterShape<TConfig, TSendResult>
+  | ChannelMessageAdapterShapeV2<TConfig, TSendResult>;
+
 /** Concrete message adapter type, preserving channel-specific adapter refinements. */
 export type ChannelMessageAdapter<
-  TAdapter extends ChannelMessageAdapterShape = ChannelMessageAdapterShape,
+  TAdapter extends AnyChannelMessageAdapterShape = ChannelMessageAdapterShape,
 > = TAdapter;
 
 /** Extra durable-final requirement map for caller-derived capability checks. */

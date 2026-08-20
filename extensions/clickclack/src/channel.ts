@@ -10,7 +10,7 @@ import {
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
 } from "openclaw/plugin-sdk/channel-outbound";
 import {
   createComputedAccountStatusAdapter,
@@ -42,7 +42,7 @@ import type { CoreConfig, ResolvedClickClackAccount } from "./types.js";
 
 const CHANNEL_ID = CLICKCLACK_CHANNEL_ID;
 
-const clickClackMessageAdapter = defineChannelMessageAdapter({
+const clickClackMessageAdapter = defineChannelMessageAdapterV2({
   id: CHANNEL_ID,
   durableFinal: {
     capabilities: {
@@ -52,6 +52,7 @@ const clickClackMessageAdapter = defineChannelMessageAdapter({
       thread: true,
       messageSendingHooks: true,
       reconcileUnknownSend: true,
+      preDispatchAuthorization: true,
     },
     reconcileUnknownSendKinds: { text: true, media: true },
     reconcileUnknownSend: reconcileClickClackUnknownSend,

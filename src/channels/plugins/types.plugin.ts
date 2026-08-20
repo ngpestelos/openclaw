@@ -4,7 +4,7 @@ import type { OperatorScope } from "../../gateway/operator-scopes.js";
  *
  * Defines the full plugin object shape composed from config, runtime, setup, and adapter surfaces.
  */
-import type { ChannelMessageAdapterShape } from "../message/types.js";
+import type { AnyChannelMessageAdapterShape } from "../message/types.js";
 import type { ChannelOwnedSetupContract } from "./setup-contract.js";
 import type { ChannelSetupWizard, ChannelSetupWizardAdapter } from "./setup-wizard-types.js";
 import type {
@@ -106,7 +106,7 @@ export type ChannelPlugin<ResolvedAccount = any, Probe = unknown, Audit = unknow
   conversationBindings?: ChannelConversationBindingSupport;
   streaming?: ChannelStreamingAdapter;
   threading?: ChannelThreadingAdapter;
-  message?: ChannelMessageAdapterShape;
+  message?: AnyChannelMessageAdapterShape;
   messaging?: ChannelMessagingAdapter;
   agentPrompt?: ChannelAgentPromptAdapter;
   directory?: ChannelDirectoryAdapter;

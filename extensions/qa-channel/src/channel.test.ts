@@ -291,6 +291,7 @@ describe("qa-channel plugin", () => {
           text: "hello",
           accountId: "default",
           replyToId: "parent-1",
+          onPlatformSendDispatch: async () => {},
         });
         const receiptPart = result.receipt.parts[0];
         expect(receiptPart?.kind).toBe("text");
@@ -311,6 +312,7 @@ describe("qa-channel plugin", () => {
           },
           accountId: "default",
           replyToId: "parent-1",
+          onPlatformSendDispatch: async () => {},
         };
         const result =
           kind === "payload"
@@ -346,6 +348,11 @@ describe("qa-channel plugin", () => {
           messageSendingHooks: () => {
             expect(adapter.send!.text).toBeTypeOf("function");
           },
+          preDispatchAuthorization: () => {
+            expect(adapter.durableFinal?.capabilities).toMatchObject({
+              preDispatchAuthorization: true,
+            });
+          },
         },
       });
     } finally {
@@ -367,6 +374,7 @@ describe("qa-channel plugin", () => {
         mediaReadFile: async () => Buffer.from(QA_GENERATED_IMAGE_BASE64, "base64"),
         accountId: "default",
         replyToId: "parent-1",
+        onPlatformSendDispatch: async () => {},
         threadId: "thread-1",
         payload: {
           text: "Here is your generated image.",

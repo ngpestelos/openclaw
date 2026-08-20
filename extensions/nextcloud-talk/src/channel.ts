@@ -25,7 +25,7 @@ import { NextcloudTalkConfigSchema } from "./config-schema.js";
 import { nextcloudTalkDoctor } from "./doctor.js";
 import { nextcloudTalkGatewayAdapter } from "./gateway.js";
 import { nextcloudTalkMessageActions } from "./message-actions.js";
-import { nextcloudTalkMessageAdapter } from "./message-adapter.js";
+import { nextcloudTalkMessageAdapter, sendNextcloudTalkMessage } from "./message-adapter.js";
 import {
   looksLikeNextcloudTalkTargetId,
   normalizeNextcloudTalkMessagingTarget,
@@ -206,23 +206,32 @@ export const nextcloudTalkPlugin: ChannelPlugin<ResolvedNextcloudTalkAccount> =
       },
       attachedResults: {
         channel: "nextcloud-talk",
-        sendText: async ({ cfg, to, text, accountId, replyToId }) =>
-          await nextcloudTalkMessageAdapter.send.text({
+        sendText: async ({ cfg, to, text, accountId, replyToId, onPlatformSendDispatch }) =>
+          await sendNextcloudTalkMessage(to, text, {
             cfg,
-            to,
-            text,
-            accountId,
-            replyToId,
+            accountId: accountId ?? undefined,
+            replyTo: replyToId ?? undefined,
+            onPlatformSendDispatch,
           }),
-        sendMedia: async ({ cfg, to, text, mediaUrl, accountId, replyToId }) =>
-          await nextcloudTalkMessageAdapter.send.media({
-            cfg,
+        sendMedia: async ({
+          cfg,
+          to,
+          text,
+          mediaUrl,
+          accountId,
+          replyToId,
+          onPlatformSendDispatch,
+        }) =>
+          await sendNextcloudTalkMessage(
             to,
-            text,
-            mediaUrl: mediaUrl ?? "",
-            accountId,
-            replyToId,
-          }),
+            mediaUrl ? `${text}\n\nAttachment: ${mediaUrl}` : text,
+            {
+              cfg,
+              accountId: accountId ?? undefined,
+              replyTo: replyToId ?? undefined,
+              onPlatformSendDispatch,
+            },
+          ),
       },
     },
   });

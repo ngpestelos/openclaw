@@ -420,6 +420,7 @@ describe("feishuOutbound.sendText local-image auto-convert", () => {
             text: "hello",
             accountId: "default",
             onDeliveryResult,
+            onPlatformSendDispatch: async () => {},
           });
           expect(sendMessageCall()?.to).toBe("chat:chat-1");
           expect(sendMessageCall()?.text).toBe("hello");
@@ -447,6 +448,7 @@ describe("feishuOutbound.sendText local-image auto-convert", () => {
             mediaReadFile,
             accountId: "default",
             onDeliveryResult,
+            onPlatformSendDispatch: async () => {},
           });
           expect(sendMediaCall()?.to).toBe("chat:chat-1");
           expect(sendMediaCall()?.mediaUrl).toBe("image.png");
@@ -458,6 +460,11 @@ describe("feishuOutbound.sendText local-image auto-convert", () => {
           expect(onDeliveryResult.mock.calls[0]?.[0]?.receipt.platformMessageIds).toEqual([
             "feishu-media-1",
           ]);
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

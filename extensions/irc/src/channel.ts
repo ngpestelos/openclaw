@@ -35,7 +35,7 @@ import {
 import { IrcChannelConfigSchema } from "./config-schema.js";
 import { collectIrcMutableAllowlistWarnings } from "./doctor.js";
 import { startIrcGatewayAccount } from "./gateway.js";
-import { ircMessageAdapter } from "./message-adapter.js";
+import { ircMessageAdapter, sendIrcMessage } from "./message-adapter.js";
 import {
   isChannelTarget,
   looksLikeIrcTargetId,
@@ -346,10 +346,28 @@ export const ircPlugin: ChannelPlugin<ResolvedIrcAccount, IrcProbe> = createChat
     base: ircOutboundBaseAdapter,
     attachedResults: {
       channel: "irc",
-      sendText: ({ onDeliveryResult: _onDeliveryResult, ...ctx }) =>
-        ircMessageAdapter.send.text(ctx),
-      sendMedia: ({ onDeliveryResult: _onDeliveryResult, mediaUrl, ...ctx }) =>
-        ircMessageAdapter.send.media({ ...ctx, mediaUrl: mediaUrl ?? "" }),
+      sendText: async ({ cfg, to, text, accountId, replyToId, onPlatformSendDispatch }) =>
+        await sendIrcMessage(to, text, {
+          cfg,
+          accountId: accountId ?? undefined,
+          replyTo: replyToId ?? undefined,
+          onPlatformSendDispatch,
+        }),
+      sendMedia: async ({
+        cfg,
+        to,
+        text,
+        mediaUrl,
+        accountId,
+        replyToId,
+        onPlatformSendDispatch,
+      }) =>
+        await sendIrcMessage(to, mediaUrl ? `${text}\n\nAttachment: ${mediaUrl}` : text, {
+          cfg,
+          accountId: accountId ?? undefined,
+          replyTo: replyToId ?? undefined,
+          onPlatformSendDispatch,
+        }),
     },
   },
 });

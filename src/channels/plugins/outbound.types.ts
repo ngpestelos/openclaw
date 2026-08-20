@@ -115,7 +115,7 @@ export type ChannelPresentationCapabilities = {
   };
 };
 
-export type ChannelDeliveryCapabilities = {
+type ChannelDeliveryCapabilities = {
   pin?: boolean;
   durableFinal?: {
     text?: boolean;
@@ -127,6 +127,7 @@ export type ChannelDeliveryCapabilities = {
     thread?: boolean;
     nativeQuote?: boolean;
     messageSendingHooks?: boolean;
+    preDispatchAuthorization?: boolean;
     batch?: boolean;
     reconcileUnknownSend?: boolean;
     afterSendSuccess?: boolean;

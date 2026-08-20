@@ -9,7 +9,7 @@ import type {
   ChannelMessageToolDiscovery,
 } from "openclaw/plugin-sdk/channel-contract";
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
 import {
   createChannelDirectoryAdapter,
@@ -88,9 +88,13 @@ import { parseDiscordTarget } from "./target-parsing.js";
 import { defaultTopLevelPlacement } from "./thread-binding-api.js";
 
 const DISCORD_ACCOUNT_STARTUP_STAGGER_MS = 10_000;
-const discordMessageAdapter = createChannelMessageAdapterFromOutbound({
+const discordMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "discord",
   outbound: discordOutbound,
+  capabilities: {
+    ...discordOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
   live: {
     capabilities: {
       draftPreview: true,

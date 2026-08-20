@@ -43,7 +43,6 @@ export type {
   ChannelOutboundPayloadContext,
   ChannelOutboundPayloadHint,
   ChannelOutboundTargetRef,
-  ChannelDeliveryCapabilities,
 } from "./outbound.types.js";
 export type { ChannelPairingAdapter } from "./pairing.types.js";
 

@@ -4,7 +4,7 @@ import type { ChannelApprovalKind } from "openclaw/plugin-sdk/approval-handler-r
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type ChannelMessageSendResult,
   type MessageReceiptPartKind,
   sanitizeForPlainText,
@@ -138,7 +138,7 @@ async function registerDeliveredIMessageApprovalPayload(
   });
 }
 
-const imessageMessageAdapter = defineChannelMessageAdapter({
+const imessageMessageAdapter = defineChannelMessageAdapterV2({
   id: "imessage",
   durableFinal: {
     capabilities: {
@@ -146,6 +146,7 @@ const imessageMessageAdapter = defineChannelMessageAdapter({
       media: true,
       replyTo: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {
@@ -455,6 +456,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount, IMessageProb
             media: true,
             replyTo: true,
             messageSendingHooks: true,
+            preDispatchAuthorization: true,
           },
         },
       },

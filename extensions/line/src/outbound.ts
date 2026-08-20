@@ -2,7 +2,7 @@ import type { messagingApi } from "@line/bot-sdk";
 import { createChannelPartialDeliveryError } from "openclaw/plugin-sdk/channel-inbound";
 // Line plugin module implements outbound behavior.
 import {
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   listMessageReceiptPlatformIds,
   type ChannelMessageSendResult,
   type MessageReceiptPartKind,
@@ -393,13 +393,14 @@ function toLineMessageSendResult(
   };
 }
 
-export const lineMessageAdapter = defineChannelMessageAdapter({
+export const lineMessageAdapter = defineChannelMessageAdapterV2({
   id: "line",
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

@@ -47,6 +47,8 @@ type ConversationRouteSessionEntry = Pick<
   | "sessionId"
   | "lifecycleRevision"
   | "updatedAt"
+  | "chatType"
+  | "delivery"
   | "conversationRouteContext"
   | "conversationRouteContextFingerprint"
 >;
@@ -57,9 +59,38 @@ function conversationRouteContextFingerprint(entry: ConversationRouteSessionEntr
     entry.sessionId ?? null,
     entry.lifecycleRevision ?? null,
     entry.updatedAt ?? null,
+    conversationRouteIdentity(entry),
     context ?? null,
   ]);
   return `sha256:${crypto.createHash("sha256").update(source).digest("hex")}`;
+}
+
+function conversationRouteIdentity(entry: ConversationRouteSessionEntry): unknown[] {
+  const delivery = entry.delivery;
+  if (delivery?.kind !== "external") {
+    return [entry.chatType ?? null, delivery?.kind ?? null];
+  }
+  const { context, origin } = delivery;
+  return [
+    entry.chatType ?? null,
+    delivery.kind,
+    context.channel ?? null,
+    context.to ?? null,
+    context.accountId ?? null,
+    context.threadId ?? null,
+    origin.provider ?? null,
+    origin.chatType ?? null,
+    origin.from ?? null,
+    origin.to ?? null,
+    origin.accountId ?? null,
+    origin.threadId ?? null,
+    origin.nativeChannelId ?? null,
+    origin.nativeDirectUserId ?? null,
+  ];
+}
+
+function conversationRouteIdentityKey(entry: ConversationRouteSessionEntry): string {
+  return JSON.stringify(conversationRouteIdentity(entry));
 }
 
 type ConversationRouteContextObservation = {
@@ -103,6 +134,8 @@ export function reconcileConversationRouteContext(
   const previousObservation = inspectConversationRouteContextFromSessionEntry(previousEntry);
   if (
     previousObservation &&
+    previousEntry &&
+    conversationRouteIdentityKey(previousEntry) === conversationRouteIdentityKey(entry) &&
     JSON.stringify(previousObservation.context) === JSON.stringify(context)
   ) {
     stampConversationRouteContext(entry);

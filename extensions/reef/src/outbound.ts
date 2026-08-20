@@ -1,6 +1,6 @@
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
 } from "openclaw/plugin-sdk/channel-outbound";
 import type {
   ChannelOutboundAdapter,
@@ -153,7 +153,9 @@ export const reefOutboundAdapter: ChannelOutboundAdapter = {
     assertAtomicReefMessageFits({ text, threadId });
     return prepareReefMessageId();
   },
-  deliveryCapabilities: { durableFinal: { text: true, replyTo: true, thread: true } },
+  deliveryCapabilities: {
+    durableFinal: { text: true, replyTo: true, thread: true, preDispatchAuthorization: true },
+  },
   resolveTarget: ({ to }) => {
     const peer = normalizeReefTarget(to ?? "");
     return peer
@@ -164,9 +166,11 @@ export const reefOutboundAdapter: ChannelOutboundAdapter = {
     await send(to, text, threadId, replyToId, preparedMessageId, onPlatformSendDispatch),
 };
 
-export const reefMessageAdapter = defineChannelMessageAdapter({
+export const reefMessageAdapter = defineChannelMessageAdapterV2({
   id: "reef",
-  durableFinal: { capabilities: { text: true, replyTo: true, thread: true } },
+  durableFinal: {
+    capabilities: { text: true, replyTo: true, thread: true, preDispatchAuthorization: true },
+  },
   send: {
     text: async (ctx) => {
       const result = await send(

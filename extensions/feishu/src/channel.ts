@@ -14,7 +14,7 @@ import type {
 } from "openclaw/plugin-sdk/channel-contract";
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   createRuntimeOutboundDelegates,
   createAccountStatusSink,
   type ChannelMessageSendResult,
@@ -231,12 +231,13 @@ function toFeishuMessageSendResult(
   };
 }
 
-const feishuMessageAdapter = defineChannelMessageAdapter({
+const feishuMessageAdapter = defineChannelMessageAdapterV2({
   id: "feishu",
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

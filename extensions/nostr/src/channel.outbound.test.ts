@@ -279,12 +279,18 @@ describe("nostr outbound cfg threading", () => {
             to: "NPUB123",
             text: "hello",
             accountId: "default",
+            onPlatformSendDispatch: async () => {},
           });
           expect(sendDm).toHaveBeenCalledWith("normalized-npub123", "hello");
           expect(result.receipt.parts[0]?.kind).toBe("text");
         },
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });

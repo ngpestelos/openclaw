@@ -185,6 +185,7 @@ describe("outbound", () => {
               to: "#testchannel",
               text: "Hello Twitch!",
               accountId: "default",
+              onPlatformSendDispatch: async () => {},
             });
             expect(result?.receipt?.platformMessageIds).toEqual(["twitch-msg-123"]);
           },
@@ -195,6 +196,7 @@ describe("outbound", () => {
               text: "image",
               mediaUrl: "https://example.com/image.png",
               accountId: "default",
+              onPlatformSendDispatch: async () => {},
             });
             expect(result?.receipt?.platformMessageIds).toEqual(["twitch-msg-123"]);
             expect(sendMessageTwitchInternal).toHaveBeenLastCalledWith(
@@ -209,6 +211,11 @@ describe("outbound", () => {
           messageSendingHooks: () => {
             expect(twitchMessageAdapter.durableFinal?.capabilities?.messageSendingHooks).toBe(true);
           },
+          preDispatchAuthorization: () => {
+            expect(twitchMessageAdapter.durableFinal?.capabilities).toMatchObject({
+              preDispatchAuthorization: true,
+            });
+          },
         },
       });
 
@@ -222,6 +229,7 @@ describe("outbound", () => {
         { capability: "thread", status: "not_declared" },
         { capability: "nativeQuote", status: "not_declared" },
         { capability: "messageSendingHooks", status: "verified" },
+        { capability: "preDispatchAuthorization", status: "verified" },
         { capability: "batch", status: "not_declared" },
         { capability: "reconcileUnknownSend", status: "not_declared" },
         { capability: "afterSendSuccess", status: "not_declared" },
@@ -252,6 +260,7 @@ describe("outbound", () => {
           text: "Hello Twitch!",
           accountId: "default",
           onDeliveryResult,
+          onPlatformSendDispatch: async () => {},
         });
       } finally {
         sendSpy.mockRestore();

@@ -6,7 +6,7 @@ import type {
 } from "openclaw/plugin-sdk/channel-contract";
 import {
   createMessageReceiptFromOutboundResults,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   type MessageReceiptPartKind,
 } from "openclaw/plugin-sdk/channel-outbound";
 import {
@@ -271,13 +271,14 @@ export const googlechatOutboundAdapter = {
   },
 };
 
-export const googlechatMessageAdapter = defineChannelMessageAdapter({
+export const googlechatMessageAdapter = defineChannelMessageAdapterV2({
   id: "googlechat",
   durableFinal: {
     capabilities: {
       text: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

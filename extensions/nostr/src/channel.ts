@@ -6,7 +6,7 @@ import {
 } from "openclaw/plugin-sdk/channel-config-helpers";
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 import {
   buildPassiveChannelStatusSummary,
   buildTrafficStatusSummary,
@@ -103,9 +103,13 @@ const nostrConfigAdapter = createTopLevelChannelConfigAdapter<ResolvedNostrAccou
       .filter(Boolean),
 });
 
-const nostrMessageAdapter = createChannelMessageAdapterFromOutbound({
+const nostrMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "nostr",
   outbound: nostrOutboundAdapter,
+  capabilities: {
+    ...nostrOutboundAdapter.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
 });
 
 const nostrPluginOutboundAdapter: ChannelOutboundAdapter = {

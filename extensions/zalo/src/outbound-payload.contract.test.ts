@@ -184,6 +184,7 @@ describe("Zalo outbound payload contract", () => {
             cfg: {},
             to: "123456789",
             text: "hello",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result.receipt.platformMessageIds).toEqual(["zl-text-1"]);
         },
@@ -193,11 +194,17 @@ describe("Zalo outbound payload contract", () => {
             to: "123456789",
             text: "image",
             mediaUrl: "https://example.com/image.png",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result.receipt.platformMessageIds).toEqual(["zl-media-1"]);
         },
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(zaloMessageAdapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -211,6 +218,7 @@ describe("Zalo outbound payload contract", () => {
       { capability: "thread", status: "not_declared" },
       { capability: "nativeQuote", status: "not_declared" },
       { capability: "messageSendingHooks", status: "verified" },
+      { capability: "preDispatchAuthorization", status: "verified" },
       { capability: "batch", status: "not_declared" },
       { capability: "reconcileUnknownSend", status: "not_declared" },
       { capability: "afterSendSuccess", status: "not_declared" },

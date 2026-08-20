@@ -235,6 +235,7 @@ describe("zalouserPlugin outbound sendPayload", () => {
       to: "user:987654321",
       text: "chunked internally",
       onDeliveryResult,
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(onDeliveryResult).toHaveBeenCalledOnce();
@@ -275,6 +276,7 @@ describe("zalouserPlugin outbound sendPayload", () => {
             cfg: {},
             to: "user:987654321",
             text: "hello",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result.receipt.platformMessageIds).toEqual(["zlu-text-1"]);
         },
@@ -284,11 +286,17 @@ describe("zalouserPlugin outbound sendPayload", () => {
             to: "user:987654321",
             text: "image",
             mediaUrl: "https://example.com/image.png",
+            onPlatformSendDispatch: async () => {},
           });
           expect(result.receipt.platformMessageIds).toEqual(["zlu-media-1"]);
         },
         messageSendingHooks: () => {
           expect(adapter.durableFinal?.capabilities?.messageSendingHooks).toBe(true);
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -298,6 +306,7 @@ describe("zalouserPlugin outbound sendPayload", () => {
     expect(proofStatusByCapability.get("text")).toBe("verified");
     expect(proofStatusByCapability.get("media")).toBe("verified");
     expect(proofStatusByCapability.get("messageSendingHooks")).toBe("verified");
+    expect(proofStatusByCapability.get("preDispatchAuthorization")).toBe("verified");
   });
 });
 

@@ -6,7 +6,7 @@ import type {
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
   createAccountStatusSink,
-  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
   createRuntimeOutboundDelegates,
 } from "openclaw/plugin-sdk/channel-outbound";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
@@ -379,6 +379,7 @@ const msteamsChannelOutbound: ChannelOutboundAdapter = {
       media: true,
       payload: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   presentationCapabilities: MSTEAMS_PRESENTATION_CAPABILITIES,
@@ -392,9 +393,13 @@ const msteamsChannelOutbound: ChannelOutboundAdapter = {
   }),
 };
 
-const msteamsMessageAdapter = createChannelMessageAdapterFromOutbound({
+const msteamsMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "msteams",
   outbound: msteamsChannelOutbound,
+  capabilities: {
+    ...msteamsChannelOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
   live: {
     capabilities: {
       draftPreview: true,

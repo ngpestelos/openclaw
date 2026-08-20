@@ -13,7 +13,7 @@ import {
 } from "openclaw/plugin-sdk/channel-core";
 import {
   createAccountStatusSink,
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
 } from "openclaw/plugin-sdk/channel-outbound";
 import { createConditionalWarningCollector } from "openclaw/plugin-sdk/channel-policy";
 import {
@@ -343,13 +343,14 @@ async function sendPreparedSmsAttachment(ctx: SmsAttachmentContext) {
   return createSmsReceipt({ results, kind: "media" });
 }
 
-const smsMessageAdapter = defineChannelMessageAdapter({
+const smsMessageAdapter = defineChannelMessageAdapterV2({
   id: CHANNEL_ID,
   durableFinal: {
     capabilities: {
       text: true,
       media: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {

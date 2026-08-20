@@ -78,11 +78,11 @@ Most plugins define one `message` adapter:
 
 ```ts
 import {
-  defineChannelMessageAdapter,
+  defineChannelMessageAdapterV2,
   createMessageReceiptFromOutboundResults,
 } from "openclaw/plugin-sdk/channel-outbound";
 
-export const demoMessageAdapter = defineChannelMessageAdapter({
+export const demoMessageAdapter = defineChannelMessageAdapterV2({
   id: "demo",
   durableFinal: {
     capabilities: {
@@ -90,6 +90,7 @@ export const demoMessageAdapter = defineChannelMessageAdapter({
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   send: {
@@ -104,7 +105,7 @@ export const demoMessageAdapter = defineChannelMessageAdapter({
       onPlatformSendDispatch,
     }) => {
       // Run this after local preparation and before every provider I/O attempt.
-      await onPlatformSendDispatch?.();
+      await onPlatformSendDispatch();
       const sent = await sendDemoMessage({
         cfg,
         to,
@@ -131,6 +132,19 @@ export const demoMessageAdapter = defineChannelMessageAdapter({
 Only declare capabilities the native transport actually preserves. Cover
 each declared send, receipt, live-preview, and receive-ack capability with
 the contract helpers exported from this subpath.
+
+V2 is required for authorization-bearing conversation delivery. Its send
+contexts always include `onPlatformSendDispatch`. Invoke it after local
+preparation and immediately before every recipient-visible or finalizing
+provider operation, including each retry and fanout operation. Do not cache a
+successful call across operations or retain the callback after the adapter
+send settles. Core revokes each callback at settlement and rechecks revocation
+after awaited authorization work.
+
+`defineChannelMessageAdapter` remains the V1 compatibility contract for
+ordinary message delivery. Its dispatch callback is optional, and a V1 adapter
+cannot claim `preDispatchAuthorization` or receive authorization-bearing
+conversation sends.
 
 ## Outbound echo suppression
 
@@ -183,19 +197,22 @@ If the channel already has a compatible `outbound` adapter, derive the
 message adapter instead of duplicating send code:
 
 ```ts
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 
-export const messageAdapter = createChannelMessageAdapterFromOutbound({
+export const messageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "demo",
   outbound,
-  durableFinal: {
-    capabilities: {
-      text: true,
-      media: true,
-    },
+  capabilities: {
+    text: true,
+    media: true,
+    preDispatchAuthorization: true,
   },
 });
 ```
+
+The bridge does not add dispatch authorization itself. Every bridged outbound
+send method must invoke its required callback at the same final provider
+boundary before using the V2 helper.
 
 ## Durable sends
 

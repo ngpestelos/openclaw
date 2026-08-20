@@ -10,7 +10,10 @@ import * as bootstrapCache from "../../agents/bootstrap-cache.js";
 import { buildChannelInboundEventContext } from "../../channels/inbound-event/context.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { InternalSessionEntry as SessionEntry } from "../../config/sessions.js";
-import { stampConversationRouteContext } from "../../config/sessions/conversation-route-context-internal.js";
+import {
+  conversationRouteContextFromSessionEntry,
+  stampConversationRouteContext,
+} from "../../config/sessions/conversation-route-context-internal.js";
 import {
   appendTranscriptMessage,
   appendTranscriptEvent,
@@ -492,7 +495,7 @@ describe("initSessionState guarded initialization", () => {
         Body: "internal reflection",
         ChatType: "channel",
         From: "msteams:system:ops",
-        To: "conversation:ops",
+        To: "conversation:other",
         OriginatingChannel: "msteams",
         SessionKey: sessionKey,
         InboundAccessAuthorized: true,
@@ -502,9 +505,12 @@ describe("initSessionState guarded initialization", () => {
     });
 
     expect(reflected.sessionEntry.conversationRouteContext).toEqual({ teamId: "team-a" });
-    expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toEqual({
-      teamId: "team-a",
+    const persisted = loadSessionEntry({ storePath, sessionKey });
+    expect(persisted?.delivery).toMatchObject({
+      kind: "external",
+      context: { channel: "msteams", to: "channel:ops" },
     });
+    expect(conversationRouteContextFromSessionEntry(persisted)).toEqual({ teamId: "team-a" });
   });
 
   it("preserves route facts when a partial admitted turn crosses a daily rollover", async () => {
@@ -517,6 +523,13 @@ describe("initSessionState guarded initialization", () => {
       updatedAt: staleStartedAt,
       sessionStartedAt: staleStartedAt,
       lastInteractionAt: staleStartedAt,
+      chatType: "channel",
+      delivery: {
+        kind: "external",
+        route: { channel: "msteams", target: { to: "channel:ops" } },
+        context: { channel: "msteams", to: "channel:ops" },
+        origin: { provider: "msteams", to: "channel:ops", chatType: "channel" },
+      },
       conversationRouteContext: { teamId: "team-a" },
     };
     stampConversationRouteContext(staleEntry);
@@ -527,7 +540,7 @@ describe("initSessionState guarded initialization", () => {
         Body: "internal reflection",
         ChatType: "channel",
         From: "msteams:system:ops",
-        To: "conversation:ops",
+        To: "conversation:other",
         OriginatingChannel: "msteams",
         SessionKey: sessionKey,
         InboundAccessAuthorized: true,
@@ -540,9 +553,12 @@ describe("initSessionState guarded initialization", () => {
 
     expect(reflected.isNewSession).toBe(true);
     expect(reflected.sessionEntry.conversationRouteContext).toEqual({ teamId: "team-a" });
-    expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toEqual({
-      teamId: "team-a",
+    const persisted = loadSessionEntry({ storePath, sessionKey });
+    expect(persisted?.delivery).toMatchObject({
+      kind: "external",
+      context: { channel: "msteams", to: "channel:ops" },
     });
+    expect(conversationRouteContextFromSessionEntry(persisted)).toEqual({ teamId: "team-a" });
   });
 
   it("clears stale route facts for a newly admitted contextless conversation", async () => {

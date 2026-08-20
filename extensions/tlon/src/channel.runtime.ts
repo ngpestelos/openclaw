@@ -152,6 +152,7 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   sendText: async ({ cfg, to, text, accountId, replyToId, threadId, onPlatformSendDispatch }) => {

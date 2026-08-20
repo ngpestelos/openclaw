@@ -114,12 +114,14 @@ describe("msteams channel message adapter", () => {
         to: "conversation:abc",
         text: "hello",
         accountId: "default",
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(mocks.sendText).toHaveBeenLastCalledWith({
         cfg,
         to: "conversation:abc",
         text: "hello",
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(result.receipt.platformMessageIds).toEqual(["msg-1"]);
       expect(result.receipt.parts[0]?.kind).toBe("text");
@@ -136,6 +138,7 @@ describe("msteams channel message adapter", () => {
         mediaAccess,
         mediaLocalRoots: ["/tmp"],
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendMedia).toHaveBeenLastCalledWith({
         cfg,
@@ -145,6 +148,7 @@ describe("msteams channel message adapter", () => {
         mediaAccess,
         mediaLocalRoots: ["/tmp"],
         accountId: "default",
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(mocks.sendMedia.mock.calls[0]?.[0]?.mediaAccess).toBe(mediaAccess);
       expect(result.receipt.platformMessageIds).toEqual(["msg-media-1"]);
@@ -166,6 +170,7 @@ describe("msteams channel message adapter", () => {
         payload,
         mediaAccess,
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendPayload).toHaveBeenLastCalledWith({
         cfg,
@@ -174,6 +179,7 @@ describe("msteams channel message adapter", () => {
         payload,
         mediaAccess,
         accountId: "default",
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(mocks.sendPayload.mock.calls[0]?.[0]?.mediaAccess).toBe(mediaAccess);
       expect(result.receipt.platformMessageIds).toEqual(["msg-payload-1"]);
@@ -189,6 +195,11 @@ describe("msteams channel message adapter", () => {
         payload: provePayload,
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
+        },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
         },
       },
     });
@@ -248,6 +259,7 @@ describe("msteams channel message adapter", () => {
       text: "threaded",
       threadId: "thread-root",
       accountId: "default",
+      onPlatformSendDispatch: async () => {},
     });
 
     expect(

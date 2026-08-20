@@ -67,14 +67,14 @@ describe("tlon channel message adapter", () => {
         to: "chat/~nec/general",
         text: "hello",
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendText).toHaveBeenLastCalledWith({
         cfg,
         to: "chat/~nec/general",
         text: "hello",
         accountId: "default",
-        replyToId: undefined,
-        threadId: undefined,
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(result.receipt.platformMessageIds).toEqual(["~zod/1700000000000"]);
       expect(result.receipt.parts[0]?.kind).toBe("text");
@@ -88,6 +88,7 @@ describe("tlon channel message adapter", () => {
         text: "image",
         mediaUrl: "https://example.com/image.png",
         accountId: "default",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendMedia).toHaveBeenLastCalledWith({
         cfg,
@@ -95,8 +96,7 @@ describe("tlon channel message adapter", () => {
         text: "image",
         mediaUrl: "https://example.com/image.png",
         accountId: "default",
-        replyToId: undefined,
-        threadId: undefined,
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(result.receipt.platformMessageIds).toEqual(["~zod/1700000000001"]);
       expect(result.receipt.parts[0]?.kind).toBe("media");
@@ -111,6 +111,7 @@ describe("tlon channel message adapter", () => {
         accountId: "default",
         replyToId: "1700000000000",
         threadId: "1700000000000",
+        onPlatformSendDispatch: async () => {},
       });
       expect(mocks.sendText).toHaveBeenLastCalledWith({
         cfg,
@@ -119,6 +120,7 @@ describe("tlon channel message adapter", () => {
         accountId: "default",
         replyToId: "1700000000000",
         threadId: "1700000000000",
+        onPlatformSendDispatch: expect.any(Function),
       });
       expect(result.receipt.replyToId).toBe("1700000000000");
       expect(result.receipt.threadId).toBe("1700000000000");
@@ -135,6 +137,11 @@ describe("tlon channel message adapter", () => {
         messageSendingHooks: () => {
           expect(sendText).toBeTypeOf("function");
         },
+        preDispatchAuthorization: () => {
+          expect(adapter.durableFinal?.capabilities).toMatchObject({
+            preDispatchAuthorization: true,
+          });
+        },
       },
     });
     expect(proofs).toStrictEqual([
@@ -147,6 +154,7 @@ describe("tlon channel message adapter", () => {
       { capability: "thread", status: "verified" },
       { capability: "nativeQuote", status: "not_declared" },
       { capability: "messageSendingHooks", status: "verified" },
+      { capability: "preDispatchAuthorization", status: "verified" },
       { capability: "batch", status: "not_declared" },
       { capability: "reconcileUnknownSend", status: "not_declared" },
       { capability: "afterSendSuccess", status: "not_declared" },

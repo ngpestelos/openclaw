@@ -4,7 +4,7 @@ import {
   buildThreadAwareOutboundSessionRoute,
   createChatChannelPlugin,
 } from "openclaw/plugin-sdk/channel-core";
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 import { createChannelDirectoryAdapter } from "openclaw/plugin-sdk/directory-runtime";
 import { parseThreadSessionSuffix } from "openclaw/plugin-sdk/routing";
 import {
@@ -40,9 +40,13 @@ import {
   type ResolvedBuzzAccount,
 } from "./types.js";
 
-const buzzMessageAdapter = createChannelMessageAdapterFromOutbound({
+const buzzMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "buzz",
   outbound: buzzOutboundAdapter,
+  capabilities: {
+    ...buzzOutboundAdapter.deliveryCapabilities.durableFinal,
+    preDispatchAuthorization: true,
+  },
 });
 
 type BuzzProbeResult = {

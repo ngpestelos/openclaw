@@ -15,7 +15,7 @@ import type {
   ChannelToolSend,
 } from "openclaw/plugin-sdk/channel-contract";
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
-import { createChannelMessageAdapterFromOutbound } from "openclaw/plugin-sdk/channel-outbound";
+import { createChannelMessageAdapterFromOutboundV2 } from "openclaw/plugin-sdk/channel-outbound";
 import { createLoggedPairingApprovalNotifier } from "openclaw/plugin-sdk/channel-pairing";
 import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
 import {
@@ -796,6 +796,7 @@ const mattermostOutbound: ChannelOutboundAdapter = {
       replyTo: true,
       thread: true,
       messageSendingHooks: true,
+      preDispatchAuthorization: true,
     },
   },
   presentationCapabilities: MATTERMOST_PRESENTATION_CAPABILITIES,
@@ -923,9 +924,13 @@ const mattermostOutbound: ChannelOutboundAdapter = {
   }),
 };
 
-const mattermostMessageAdapter = createChannelMessageAdapterFromOutbound({
+const mattermostMessageAdapter = createChannelMessageAdapterFromOutboundV2({
   id: "mattermost",
   outbound: mattermostOutbound,
+  capabilities: {
+    ...mattermostOutbound.deliveryCapabilities?.durableFinal,
+    preDispatchAuthorization: true,
+  },
   live: {
     capabilities: {
       draftPreview: true,

@@ -11,6 +11,9 @@
     "zod": "4.4.3"
   },
   "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.8.1"
+    },
     "extensions": [
       "./index.ts"
     ],

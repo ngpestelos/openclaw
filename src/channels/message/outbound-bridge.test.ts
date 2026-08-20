@@ -1,7 +1,10 @@
 // Outbound bridge tests cover channel message handoff from core to outbound adapters.
 import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import { createChannelMessageAdapterFromOutbound } from "./outbound-bridge.js";
+import {
+  createChannelMessageAdapterFromOutbound,
+  createChannelMessageAdapterFromOutboundV2,
+} from "./outbound-bridge.js";
 import type {
   ChannelMessageSendPayloadContext,
   ChannelMessageSendPollContext,
@@ -33,6 +36,28 @@ function requireFirstCallArg(mock: {
 }
 
 describe("createChannelMessageAdapterFromOutbound", () => {
+  it("stamps the V2 contract while forwarding required dispatch authorization", async () => {
+    const onPlatformSendDispatch = vi.fn(async () => undefined);
+    const sendText = vi.fn(async (ctx: ChannelMessageSendTextContext) => {
+      await ctx.onPlatformSendDispatch?.();
+      return { channel: "demo", messageId: "msg-v2" };
+    });
+    const adapter = createChannelMessageAdapterFromOutboundV2({
+      outbound: { sendText },
+      capabilities: { text: true, preDispatchAuthorization: true },
+    });
+
+    await adapter.send?.text?.({
+      cfg,
+      to: "room-1",
+      text: "hello",
+      onPlatformSendDispatch,
+    });
+
+    expect(adapter.durableFinal.capabilities.preDispatchAuthorization).toBe(true);
+    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+  });
+
   it("wraps outbound text sends with a message receipt", async () => {
     const sendText = vi.fn(async (_request: ChannelMessageSendTextContext) => ({
       channel: "demo",
