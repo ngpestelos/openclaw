@@ -2147,7 +2147,9 @@ describe("package acceptance workflow", () => {
       workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, "summary"),
       "Remove parent-owned child workflow ref",
     );
-    expect(cleanupStep.if).toContain("always()");
+    // Failed validation retains the immutable ref so GitHub can rerun child dispatches.
+    expect(cleanupStep.if).toContain("success()");
+    expect(cleanupStep.if).not.toContain("always()");
     expectTextToIncludeAll(cleanupStep.run, [
       'current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${encoded_branch}" --jq .sha)"',
       '"$current_sha" != "$PARENT_WORKFLOW_SHA"',

@@ -39,11 +39,15 @@ only for the broad advisory sweep.
 independent failures together. Pass `-f fail_fast=true` when the shorter
 first-failure cancellation path is preferable.
 
-The helper creates a temporary `release-ci/*` ref pinned to the Tooling SHA,
-passes the Validation SHA as both the candidate ref and `expected_sha`, and
-deletes the temporary ref after validation. The Validation SHA equals the Code
-SHA for product validation or the Release SHA for changelog-only validation; it
-is not a third release identity. The workflow rejects malformed or mismatched
+The helper creates a temporary `release-ci/*` ref pinned to the Tooling SHA and
+passes the Validation SHA as both the candidate ref and `expected_sha`. A run
+dispatched directly from `main` also creates a run-owned `release-ci/*` ref at
+its original Tooling SHA so a later `main` update cannot move child workflows.
+Successful validation removes these temporary refs after verification. Failed
+validation retains them for GitHub reruns and evidence diagnosis; delete them
+after the rerun verifies successfully. The Validation SHA equals the Code SHA
+for product validation or the Release SHA for changelog-only validation; it is
+not a third release identity. The workflow rejects malformed or mismatched
 expected SHAs before child dispatch. Every child must report the same Tooling
 SHA. Pass
 `-f reuse_evidence=false` to force a fresh run. Regular release-branch runs
@@ -51,7 +55,7 @@ require `--workflow-sha` with the recorded full SHA, which must remain reachable
 from current `origin/main`. The helper rejects a pinned Tooling SHA that does
 not declare the current release-isolation contract or the `expected_sha`
 dispatch input; it never silently substitutes newer tooling. The workflow never
-creates or updates repository refs itself.
+updates release or target refs.
 
 ## Extended-stable exception
 

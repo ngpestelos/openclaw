@@ -1939,7 +1939,7 @@ jobs:
           overwrite: true
 
       - name: Remove parent-owned child workflow ref
-        if: ${{ always() && github.ref_name == 'main' && needs.resolve_target.outputs.child_ref != '' }}
+        if: ${{ success() && github.ref_name == 'main' && needs.resolve_target.outputs.child_ref != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
