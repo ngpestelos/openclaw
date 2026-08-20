@@ -323,14 +323,13 @@ export async function sendDiscordComponentMessage(
 
   let result: { id: string; channel_id: string };
   try {
-    await opts.onPlatformSendDispatch?.();
     result = (await request(
       () =>
         createChannelMessage<{ id: string; channel_id: string }>(rest, channelId, {
           body,
         }),
       "components",
-      { safety: "nonce-protected-create" },
+      { safety: "nonce-protected-create", onPlatformSendDispatch: opts.onPlatformSendDispatch },
     )) as { id: string; channel_id: string };
   } catch (err) {
     throw await buildDiscordSendError(err, {

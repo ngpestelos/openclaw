@@ -42,7 +42,14 @@ type OptionalConversationRouteFacts = Partial<Pick<ConversationRecord, "nativeCh
 type ConversationRouteCandidateWithFacts = ConversationRouteCandidate &
   OptionalConversationRouteFacts;
 
-type PluginRouteOwnerResolution = { handled: false } | { handled: true; agentId?: string };
+type ConversationRouteEligibility = "eligible" | "denied" | "unavailable";
+type PluginRouteOwnerResolution =
+  | { kind: "unhandled" }
+  | { kind: "available"; agentId?: string }
+  | { kind: "unavailable" };
+type GenericRouteOwnerResolution =
+  | { kind: "available"; agentId?: string }
+  | { kind: "unavailable" };
 
 function resolvePluginRouteOwner(
   config: OpenClawConfig,
@@ -53,7 +60,7 @@ function resolvePluginRouteOwner(
     ? getLoadedChannelPlugin(channelId)?.messaging?.resolveConversationRouteOwner
     : undefined;
   if (!resolver) {
-    return { handled: false };
+    return { kind: "unhandled" };
   }
   try {
     const route = resolver({
@@ -68,23 +75,26 @@ function resolvePluginRouteOwner(
       },
     });
     if (route === undefined) {
-      return { handled: false };
+      return { kind: "unhandled" };
     }
     if (!route) {
-      return { handled: true };
+      return { kind: "available" };
+    }
+    if (route.kind === "unavailable") {
+      return { kind: "unavailable" };
     }
     if (route.kind === "plugin") {
       return {
-        handled: true,
+        kind: "available",
         ...(hasGlobalPluginHook(route.pluginId, "inbound_claim")
           ? {}
           : { agentId: normalizeAgentId(route.fallbackAgentId) }),
       };
     }
-    return { handled: true, agentId: normalizeAgentId(route.agentId) };
+    return { kind: "available", agentId: normalizeAgentId(route.agentId) };
   } catch (error) {
     if (error instanceof AgentSelectionRequiredError) {
-      return { handled: true };
+      return { kind: "available" };
     }
     throw error;
   }
@@ -142,7 +152,7 @@ function resolveGenericRouteOwner(
   conversation: ConversationRouteCandidate,
   route: ResolvedAgentRoute,
   context?: NonNullable<ConversationRouteCandidate["routeContext"]>,
-): { agentId?: string } {
+): GenericRouteOwnerResolution {
   const bindingConversation = {
     channel: conversation.channel,
     accountId: normalizeAccountId(conversation.accountId),
@@ -162,14 +172,14 @@ function resolveGenericRouteOwner(
   if (!runtimeRoute.bindingOwnerAvailable) {
     // A missing custom store cannot prove the conversation was unbound; detached delivery waits
     // for its owner to return rather than reassigning it through configured/static fallback.
-    return {};
+    return { kind: "unavailable" };
   }
   if (runtimeRoute.pluginId) {
     return hasGlobalPluginHook(runtimeRoute.pluginId, "inbound_claim")
-      ? {}
-      : { agentId: normalizeAgentId(runtimeRoute.route.agentId) };
+      ? { kind: "available" }
+      : { kind: "available", agentId: normalizeAgentId(runtimeRoute.route.agentId) };
   }
-  return { agentId: normalizeAgentId(runtimeRoute.route.agentId) };
+  return { kind: "available", agentId: normalizeAgentId(runtimeRoute.route.agentId) };
 }
 
 function hasUnrecordedContextualBinding(
@@ -202,12 +212,12 @@ function hasUnrecordedContextualBinding(
   });
 }
 
-/** Checks detached outbound eligibility without treating inbound context as a reusable grant. */
-export function isConversationRouteEligibleForAgent(params: {
+/** Revalidates detached ownership; `unavailable` is temporary and must not be cached as denial. */
+export function resolveConversationRouteEligibilityForAgent(params: {
   config: OpenClawConfig;
   agentId: string;
   conversation: ConversationRouteCandidateWithFacts;
-}): boolean {
+}): ConversationRouteEligibility {
   const agentId = normalizeAgentId(params.agentId);
   const conversation = params.conversation;
   const hasObservedRouteContext = Boolean(
@@ -215,43 +225,57 @@ export function isConversationRouteEligibleForAgent(params: {
   );
   const unknownContext = Boolean(conversation.observedFromSession && !hasObservedRouteContext);
   const pluginRoute = resolvePluginRouteOwner(params.config, conversation);
-  if (pluginRoute.handled) {
-    return (
-      pluginRoute.agentId === agentId &&
+  if (pluginRoute.kind !== "unhandled") {
+    if (pluginRoute.kind === "unavailable") {
+      return "unavailable";
+    }
+    return pluginRoute.agentId === agentId &&
       !(
         unknownContext &&
         pluginRoute.agentId &&
         hasUnrecordedContextualBinding(params.config, conversation, pluginRoute.agentId, true)
       )
-    );
+      ? "eligible"
+      : "denied";
   }
   if (hasObservedRouteContext && conversation.routeContext) {
     const route = resolveRouteOwner(params.config, conversation, conversation.routeContext);
-    return route
-      ? resolveGenericRouteOwner(params.config, conversation, route, conversation.routeContext)
-          .agentId === agentId
-      : false;
+    if (!route) {
+      return "denied";
+    }
+    const owner = resolveGenericRouteOwner(
+      params.config,
+      conversation,
+      route,
+      conversation.routeContext,
+    );
+    return owner.kind === "unavailable"
+      ? "unavailable"
+      : owner.agentId === agentId
+        ? "eligible"
+        : "denied";
   }
   const route = resolveRouteOwner(params.config, conversation);
   if (!route) {
-    return false;
+    return "denied";
   }
-  const resolvedOwner = resolveGenericRouteOwner(params.config, conversation, route).agentId;
+  const owner = resolveGenericRouteOwner(params.config, conversation, route);
+  if (owner.kind === "unavailable") {
+    return "unavailable";
+  }
+  const resolvedOwner = owner.agentId;
   if (resolvedOwner !== agentId) {
-    return false;
+    return "denied";
   }
   if (
     !unknownContext &&
     (route.matchedBy === "binding.peer" || route.matchedBy === "binding.peer.wildcard")
   ) {
-    return true;
+    return "eligible";
   }
-  return !hasUnrecordedContextualBinding(
-    params.config,
-    conversation,
-    resolvedOwner,
-    unknownContext,
-  );
+  return hasUnrecordedContextualBinding(params.config, conversation, resolvedOwner, unknownContext)
+    ? "denied"
+    : "eligible";
 }
 
 function rejectConversationPlatformSend(reference: string): never {
@@ -259,6 +283,14 @@ function rejectConversationPlatformSend(reference: string): never {
   throw new PlatformMessageNotDispatchedError(message, {
     cause: new Error(message),
     retryable: false,
+  });
+}
+
+function deferConversationPlatformSend(reference: string): never {
+  const message = `Conversation ownership is temporarily unavailable: ${reference}`;
+  throw new PlatformMessageNotDispatchedError(message, {
+    cause: new Error(message),
+    retryable: true,
   });
 }
 
@@ -273,14 +305,18 @@ export function assertConversationPlatformSendAuthorized(params: {
     params.scope,
     params.conversationRef,
   );
-  if (
-    !conversation ||
-    !isConversationRouteEligibleForAgent({
-      config: params.config,
-      agentId: params.agentId,
-      conversation,
-    })
-  ) {
+  if (!conversation) {
+    rejectConversationPlatformSend(params.conversationRef);
+  }
+  const eligibility = resolveConversationRouteEligibilityForAgent({
+    config: params.config,
+    agentId: params.agentId,
+    conversation,
+  });
+  if (eligibility === "unavailable") {
+    deferConversationPlatformSend(params.conversationRef);
+  }
+  if (eligibility === "denied") {
     rejectConversationPlatformSend(params.conversationRef);
   }
 }

@@ -17,6 +17,7 @@ vi.mock("./comment-reaction.js", () => ({
 }));
 
 let registerFeishuDriveTools: typeof import("./drive.js").registerFeishuDriveTools;
+let deliverCommentThreadText: typeof import("./drive.js").deliverCommentThreadText;
 
 function createFeishuToolRuntime(): PluginRuntime {
   return {} as PluginRuntime;
@@ -240,7 +241,7 @@ describe("registerFeishuDriveTools", () => {
   const requestMock = vi.fn();
 
   beforeAll(async () => {
-    ({ registerFeishuDriveTools } = await import("./drive.js"));
+    ({ deliverCommentThreadText, registerFeishuDriveTools } = await import("./drive.js"));
   });
 
   afterAll(() => {
@@ -268,6 +269,26 @@ describe("registerFeishuDriveTools", () => {
       request: requestMock,
     });
     cleanupAmbientCommentTypingReactionMock.mockResolvedValue(false);
+  });
+
+  it("blocks a comment write after metadata preflight when platform dispatch is rejected", async () => {
+    const rejection = new Error("conversation owner changed");
+    requestMock.mockResolvedValueOnce(commentMetadataResponse());
+
+    await expect(
+      deliverCommentThreadText({ request: requestMock } as never, {
+        file_token: "doc_1",
+        file_type: "docx",
+        comment_id: "c1",
+        content: "blocked reply",
+        onPlatformSendDispatch: async () => {
+          throw rejection;
+        },
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(requestMock).toHaveBeenCalledOnce();
+    expectRequestCall(requestMock, 0, commentMetadataRequest());
   });
 
   it("registers feishu_drive and handles comment actions", async () => {

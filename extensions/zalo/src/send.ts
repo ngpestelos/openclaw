@@ -22,6 +22,7 @@ type ZaloSendOptions = {
   caption?: string;
   verbose?: boolean;
   proxy?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type ZaloSendResult = {
@@ -168,15 +169,20 @@ export async function sendMessageZalo(
     });
   }
 
-  return await runZaloSend("Failed to send message", { chatId: context.chatId, kind: "text" }, () =>
-    sendMessage(
-      context.token,
-      {
-        chat_id: context.chatId,
-        text: truncateUtf16Safe(text, 2000),
-      },
-      context.fetcher,
-    ),
+  return await runZaloSend(
+    "Failed to send message",
+    { chatId: context.chatId, kind: "text" },
+    async () => {
+      await options.onPlatformSendDispatch?.();
+      return await sendMessage(
+        context.token,
+        {
+          chat_id: context.chatId,
+          text: truncateUtf16Safe(text, 2000),
+        },
+        context.fetcher,
+      );
+    },
   );
 }
 
@@ -199,9 +205,12 @@ async function sendPhotoZalo(
     };
   }
 
-  return await runZaloSend("Failed to send photo", { chatId: context.chatId, kind: "media" }, () =>
-    (async () =>
-      sendPhoto(
+  return await runZaloSend(
+    "Failed to send photo",
+    { chatId: context.chatId, kind: "media" },
+    async () => {
+      await options.onPlatformSendDispatch?.();
+      return await sendPhoto(
         context.token,
         {
           chat_id: context.chatId,
@@ -210,6 +219,7 @@ async function sendPhotoZalo(
             options.caption !== undefined ? truncateUtf16Safe(options.caption, 2000) : undefined,
         },
         context.fetcher,
-      ))(),
+      );
+    },
   );
 }

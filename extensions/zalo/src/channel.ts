@@ -98,6 +98,7 @@ async function sendZaloDelivery(ctx: {
   text: string;
   accountId?: string | null;
   mediaUrl?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<{ messageId: string; receipt: MessageReceipt }> {
   const result = await (
     await loadZaloChannelRuntime()
@@ -107,6 +108,7 @@ async function sendZaloDelivery(ctx: {
     accountId: ctx.accountId ?? undefined,
     mediaUrl: ctx.mediaUrl,
     cfg: ctx.cfg,
+    onPlatformSendDispatch: ctx.onPlatformSendDispatch,
   });
   if (!result.ok) {
     throw new Error(result.error ?? `Failed to send Zalo ${ctx.mediaUrl ? "media" : "message"}`);

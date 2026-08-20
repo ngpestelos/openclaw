@@ -161,6 +161,7 @@ const imessageMessageAdapter = defineChannelMessageAdapter({
         replyToId: ctx.replyToId ?? undefined,
         conversationReadOrigin: (ctx as typeof ctx & IMessageMessageContextExtras)
           .conversationReadOrigin,
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch,
       });
       return toIMessageMessageSendResult(result, "text", ctx.replyToId);
     },
@@ -181,6 +182,7 @@ const imessageMessageAdapter = defineChannelMessageAdapter({
         replyToId: ctx.replyToId ?? undefined,
         conversationReadOrigin: (ctx as typeof ctx & IMessageMessageContextExtras)
           .conversationReadOrigin,
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch,
         ...(ctx.onDeliveryResult
           ? {
               onDeliveryResult: async (acceptedResult) => {
@@ -458,7 +460,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount, IMessageProb
       },
       attachedResults: {
         channel: "imessage",
-        sendText: async ({ cfg, to, text, accountId, deps, replyToId }) =>
+        sendText: async ({ cfg, to, text, accountId, deps, replyToId, onPlatformSendDispatch }) =>
           await (
             await loadIMessageChannelRuntime()
           ).sendIMessageOutbound({
@@ -468,6 +470,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount, IMessageProb
             accountId: accountId ?? undefined,
             deps,
             replyToId: replyToId ?? undefined,
+            onPlatformSendDispatch,
           }),
         sendMedia: async ({
           cfg,
@@ -482,6 +485,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount, IMessageProb
           deps,
           replyToId,
           onDeliveryResult,
+          onPlatformSendDispatch,
         }) =>
           await (
             await loadIMessageChannelRuntime()
@@ -497,6 +501,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount, IMessageProb
             accountId: accountId ?? undefined,
             deps,
             replyToId: replyToId ?? undefined,
+            onPlatformSendDispatch,
             ...(onDeliveryResult
               ? {
                   onDeliveryResult: async (result) => {

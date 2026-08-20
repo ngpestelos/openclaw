@@ -511,8 +511,11 @@ export type ChannelMessagingAdapter = {
       };
     };
   }) =>
+    // `undefined` delegates to core, `null` denies ownership, and `unavailable`
+    // preserves temporary adapter-store outages as retryable delivery failures.
     | { kind: "agent"; agentId: string }
     | { kind: "plugin"; pluginId: string; fallbackAgentId: string }
+    | { kind: "unavailable" }
     | null
     | undefined;
   /** DM targets rebuilt from session keys require an explicit `user:` kind prefix. */

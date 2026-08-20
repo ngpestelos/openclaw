@@ -398,6 +398,7 @@ export async function sendMSTeamsMessages(params: {
   messages: MSTeamsRenderedMessage[];
   retry?: false | MSTeamsSendRetryOptions;
   onRetry?: (event: MSTeamsSendRetryEvent) => void;
+  onPlatformSendDispatch?: () => Promise<void>;
   /** Token provider for SharePoint uploads in group chats/channels */
   tokenProvider?: MSTeamsAccessTokenProvider;
   /** SharePoint site ID for file uploads in group chats/channels */
@@ -475,6 +476,7 @@ export async function sendMSTeamsMessages(params: {
             delete activity["_pendingUploadId"];
           }
 
+          await params.onPlatformSendDispatch?.();
           providerDispatchStarted = true;
           return await sendFn(activity);
         },

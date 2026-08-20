@@ -329,14 +329,12 @@ export function createTelegramTextSender(config: {
       label,
       requestParams,
       request: async (effectiveParams, requestLabel) => {
-        await opts.onPlatformSendDispatch?.();
-        return await requestWithChatNotFound(
-          () =>
-            Object.keys(effectiveParams).length
-              ? api.sendMessage(chatId, text, effectiveParams)
-              : api.sendMessage(chatId, text),
-          requestLabel,
-        );
+        return await requestWithChatNotFound(async () => {
+          await opts.onPlatformSendDispatch?.();
+          return Object.keys(effectiveParams).length
+            ? await api.sendMessage(chatId, text, effectiveParams)
+            : await api.sendMessage(chatId, text);
+        }, requestLabel);
       },
     });
     return {
@@ -462,17 +460,15 @@ export function createTelegramTextSender(config: {
                   requestParams: requestParams ?? {},
                   removeNativeQuoteParam: removeTelegramRichNativeQuoteParam,
                   request: async (effectiveParams, label) => {
-                    await opts.onPlatformSendDispatch?.();
-                    return await requestWithChatNotFound(
-                      () =>
-                        getTelegramRichRawApi(api).sendRichMessage({
-                          chat_id: chatId,
-                          rich_message: richMessage,
-                          ...effectiveParams,
-                          ...(opts.silent === true ? { disable_notification: true } : {}),
-                        }),
-                      label,
-                    );
+                    return await requestWithChatNotFound(async () => {
+                      await opts.onPlatformSendDispatch?.();
+                      return await getTelegramRichRawApi(api).sendRichMessage({
+                        chat_id: chatId,
+                        rich_message: richMessage,
+                        ...effectiveParams,
+                        ...(opts.silent === true ? { disable_notification: true } : {}),
+                      });
+                    }, label);
                   },
                 });
                 const accepted = {

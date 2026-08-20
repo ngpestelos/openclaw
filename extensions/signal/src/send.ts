@@ -42,6 +42,7 @@ export type SignalSendOpts = {
   replyToId?: string | null;
   replyToAuthor?: string | null;
   replyToBody?: string | null;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 export type SignalSendResult = {
@@ -384,6 +385,7 @@ export async function sendMessageSignal(
   let result: SignalSendRpcResult | undefined;
   if (quote) {
     try {
+      await opts.onPlatformSendDispatch?.();
       result = await signalRpcRequest<SignalSendRpcResult>(
         "send",
         { ...params, ...quote.params },
@@ -394,10 +396,12 @@ export async function sendMessageSignal(
       if (!isSignalQuoteMetadataRejection(error)) {
         throw error;
       }
+      await opts.onPlatformSendDispatch?.();
       result = await signalRpcRequest<SignalSendRpcResult>("send", params, sendOpts);
       nativeReplyStatus = "fallback";
     }
   } else {
+    await opts.onPlatformSendDispatch?.();
     result = await signalRpcRequest<SignalSendRpcResult>("send", params, sendOpts);
   }
   assertSignalRecipientDelivery(result, target);

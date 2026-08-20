@@ -20,9 +20,10 @@ import type {
 import { prepareTelegramOutbound } from "./send-outbound.js";
 import { parseTelegramTarget, type TelegramTarget } from "./targets.js";
 
-type TelegramReactionOpts = TelegramApiCallOpts & {
-  remove?: boolean;
-};
+type TelegramReactionOpts = TelegramApiCallOpts &
+  Pick<TelegramSendOpts, "onPlatformSendDispatch"> & {
+    remove?: boolean;
+  };
 
 type TelegramTypingOpts = Omit<TelegramApiCallOpts, "gatewayClientScopes"> &
   Pick<TelegramSendOpts, "messageThreadId">;
@@ -119,7 +120,10 @@ async function reactMessageTelegramWithContext(
     throw new Error("Telegram reactions are unavailable in this bot API.");
   }
   try {
-    await request(() => api.setMessageReaction(chatId, messageId, reactions), "reaction");
+    await request(async () => {
+      await opts.onPlatformSendDispatch?.();
+      return await api.setMessageReaction(chatId, messageId, reactions);
+    }, "reaction");
   } catch (err: unknown) {
     const msg = formatErrorMessage(err);
     if (/REACTION_INVALID/i.test(msg)) {

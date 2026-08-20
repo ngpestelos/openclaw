@@ -1358,6 +1358,23 @@ describe("sendMessageIMessage receipts", () => {
     expect(result.receipt.sentAt).toBeGreaterThan(0);
   });
 
+  it("blocks the native text request when platform dispatch is rejected", async () => {
+    const client = createClient({ guid: "p:0/imsg-blocked" });
+    const rejection = new Error("conversation owner changed");
+
+    await expect(
+      sendMessageIMessage("chat_id:42", "hello", {
+        config: IMESSAGE_TEST_CFG,
+        client,
+        onPlatformSendDispatch: async () => {
+          throw rejection;
+        },
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(getClientMocks(client).request).not.toHaveBeenCalled();
+  });
+
   it("rejects an unsuccessful RPC send instead of acknowledging a delivered message", async () => {
     const client = createClient({ success: false, error: "recipient is not registered" });
 
@@ -1691,6 +1708,32 @@ describe("sendMessageIMessage receipts", () => {
     // The receipt reflects the unthreaded send that was actually delivered.
     expect(result.receipt.replyToId).toBeUndefined();
     expect(result.receipt.parts[0]?.replyToId).toBeUndefined();
+  });
+
+  it("revalidates platform dispatch before an unthreaded fallback send", async () => {
+    const rejection = new Error("conversation owner changed");
+    const client = createRejectingClient(
+      new Error(
+        "reply_to requires bridge transport; AppleScript fallback cannot send threaded replies",
+      ),
+    );
+    const onPlatformSendDispatch = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(rejection);
+
+    await expect(
+      sendMessageIMessage("chat_id:42", "hello", {
+        config: IMESSAGE_TEST_CFG,
+        client,
+        conversationReadOrigin: "direct-operator",
+        replyToId: "reply-1",
+        onPlatformSendDispatch,
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
+    expect(getClientMocks(client).request).toHaveBeenCalledOnce();
   });
 
   it("resends a media reply unthreaded when threaded replies are unsupported (#99638)", async () => {

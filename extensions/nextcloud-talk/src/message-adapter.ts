@@ -13,17 +13,19 @@ export const nextcloudTalkMessageAdapter = defineChannelMessageAdapter({
     },
   },
   send: {
-    text: async ({ cfg, to, text, accountId, replyToId }) =>
+    text: async ({ cfg, to, text, accountId, replyToId, onPlatformSendDispatch }) =>
       await sendMessageNextcloudTalk(to, text, {
         accountId: accountId ?? undefined,
         replyTo: replyToId ?? undefined,
         cfg: cfg as CoreConfig,
+        onPlatformSendDispatch,
       }),
-    media: async ({ cfg, to, text, mediaUrl, accountId, replyToId }) =>
+    media: async ({ cfg, to, text, mediaUrl, accountId, replyToId, onPlatformSendDispatch }) =>
       await sendMessageNextcloudTalk(to, mediaUrl ? `${text}\n\nAttachment: ${mediaUrl}` : text, {
         accountId: accountId ?? undefined,
         replyTo: replyToId ?? undefined,
         cfg: cfg as CoreConfig,
+        onPlatformSendDispatch,
       }),
   },
 });

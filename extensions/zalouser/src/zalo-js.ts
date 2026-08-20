@@ -1193,6 +1193,7 @@ export async function sendZaloTextMessage(
           if (media.kind === "audio") {
             let textMessageId: string | undefined;
             if (payloadText) {
+              await options.onPlatformSendDispatch?.();
               const textResponse = await api.sendMessage(
                 textStyles ? { msg: payloadText, styles: textStyles } : payloadText,
                 trimmedThreadId,
@@ -1220,6 +1221,7 @@ export async function sendZaloTextMessage(
               throw new Error("Failed to resolve uploaded audio URL for voice message");
             }
             const voiceUrl = buildZaloVoicePlaybackUrl(voiceAsset);
+            await options.onPlatformSendDispatch?.();
             const response = await api.sendVoice({ voiceUrl }, trimmedThreadId, type);
             const voiceMessageId = extractSendMessageId(response);
             return {
@@ -1233,6 +1235,7 @@ export async function sendZaloTextMessage(
             };
           }
 
+          await options.onPlatformSendDispatch?.();
           const response = await api.sendMessage(
             {
               msg: payloadText,
@@ -1264,6 +1267,7 @@ export async function sendZaloTextMessage(
 
         const payloadText = truncatePayloadText(text);
         const textStyles = clampTextStyles(payloadText, options.textStyles);
+        await options.onPlatformSendDispatch?.();
         const response = await api.sendMessage(
           textStyles ? { msg: payloadText, styles: textStyles } : payloadText,
           trimmedThreadId,

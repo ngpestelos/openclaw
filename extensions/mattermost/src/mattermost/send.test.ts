@@ -267,6 +267,21 @@ describe("sendMessageMattermost", () => {
     mockState.uploadMattermostFile.mockResolvedValue({ id: "file-1" });
   });
 
+  it("blocks the recipient-visible post when platform dispatch is rejected", async () => {
+    const rejection = new Error("conversation owner changed");
+
+    await expect(
+      sendMessageMattermost("channel:town-square", "hello", {
+        cfg: TEST_CFG,
+        onPlatformSendDispatch: async () => {
+          throw rejection;
+        },
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(mockState.createMattermostPost).not.toHaveBeenCalled();
+  });
+
   it("uses provided cfg and skips runtime loadConfig", async () => {
     const providedCfg = {
       channels: {

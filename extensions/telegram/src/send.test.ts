@@ -3380,16 +3380,20 @@ describe("sendMessageTelegram", () => {
       });
     const api = makeTelegramApiTestMock({ sendMessage });
     const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+    const onPlatformSendDispatch = vi.fn(async () => undefined);
 
     const promise = sendMessageTelegram(chatId, "hi", {
       cfg: TELEGRAM_TEST_CFG,
       token: "tok",
       api,
       retry: { attempts: 2, minDelayMs: 0, maxDelayMs: 1000, jitter: 0 },
+      onPlatformSendDispatch,
     });
 
     await vi.runAllTimersAsync();
     await expect(promise).resolves.toEqual({ messageId: "1", chatId });
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
     expect(firstMockCall(setTimeoutSpy, "setTimeout call")[1]).toBe(500);
     setTimeoutSpy.mockRestore();
     vi.useRealTimers();

@@ -47,6 +47,7 @@ type SendMSTeamsMessageParams = {
   mediaAccess?: OutboundMediaLoadOptions["mediaAccess"];
   mediaLocalRoots?: readonly string[];
   mediaReadFile?: (filePath: string) => Promise<Buffer>;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type SendMSTeamsMessageResult = {
@@ -141,6 +142,7 @@ type SendMSTeamsPollParams = {
   options: string[];
   /** Max selections (defaults to 1) */
   maxSelections?: number;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type SendMSTeamsPollResult = {
@@ -156,6 +158,7 @@ type SendMSTeamsCardParams = {
   to: string;
   /** Adaptive Card JSON object */
   card: Record<string, unknown>;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type SendMSTeamsCardResult = {
@@ -241,6 +244,7 @@ export async function sendMessageMSTeams(
         ctx,
         activity,
         errorPrefix: "msteams consent card send",
+        onPlatformSendDispatch: params.onPlatformSendDispatch,
       });
 
       // Store the activity ID so the accept handler can replace the consent
@@ -265,14 +269,14 @@ export async function sendMessageMSTeams(
       const base64 = media.buffer.toString("base64");
       const finalMediaUrl = `data:${media.contentType};base64,${base64}`;
 
-      return sendTextWithMedia(ctx, messageText, finalMediaUrl);
+      return sendTextWithMedia(ctx, messageText, finalMediaUrl, params.onPlatformSendDispatch);
     }
 
     if (isImage && !sharePointSiteId) {
       // Group chat/channel images can be sent inline without SharePoint storage.
       const base64 = media.buffer.toString("base64");
       const finalMediaUrl = `data:${media.contentType};base64,${base64}`;
-      return sendTextWithMedia(ctx, messageText, finalMediaUrl);
+      return sendTextWithMedia(ctx, messageText, finalMediaUrl, params.onPlatformSendDispatch);
     }
 
     // Group chat or channel: upload to configured SharePoint storage.
@@ -319,6 +323,7 @@ export async function sendMessageMSTeams(
       const messageId = await sendProactiveActivityRaw({
         ctx,
         activity,
+        onPlatformSendDispatch: params.onPlatformSendDispatch,
       });
 
       log.info("sent native file card", {
@@ -344,7 +349,7 @@ export async function sendMessageMSTeams(
   }
 
   // No media: send text only
-  return sendTextWithMedia(ctx, messageText, undefined);
+  return sendTextWithMedia(ctx, messageText, undefined, params.onPlatformSendDispatch);
 }
 
 /**
@@ -354,6 +359,7 @@ async function sendTextWithMedia(
   ctx: MSTeamsProactiveContext,
   text: string,
   mediaUrl: string | undefined,
+  onPlatformSendDispatch?: () => Promise<void>,
 ): Promise<SendMSTeamsMessageResult> {
   const {
     app,
@@ -381,6 +387,7 @@ async function sendTextWithMedia(
       onRetry: (event) => {
         log.debug?.("retrying send", { conversationId, ...event });
       },
+      onPlatformSendDispatch,
       tokenProvider,
       sharePointSiteId,
       mediaMaxBytes,
@@ -415,6 +422,7 @@ type ProactiveActivityParams = {
   ctx: MSTeamsProactiveContext;
   activity: Record<string, unknown>;
   errorPrefix: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type ProactiveActivityRawParams = Omit<ProactiveActivityParams, "errorPrefix">;
@@ -422,8 +430,10 @@ type ProactiveActivityRawParams = Omit<ProactiveActivityParams, "errorPrefix">;
 async function sendProactiveActivityRaw({
   ctx,
   activity,
+  onPlatformSendDispatch,
 }: ProactiveActivityRawParams): Promise<string> {
   const baseRef = buildConversationReference(ctx.ref);
+  await onPlatformSendDispatch?.();
   const response = await sendMSTeamsActivityWithReference(ctx.app, baseRef, activity, {
     ...(ctx.threadActivityId ? { threadActivityId: ctx.threadActivityId } : {}),
     serviceUrlBoundary: ctx.sdkCloudOptions,
@@ -435,9 +445,10 @@ async function sendProactiveActivity({
   ctx,
   activity,
   errorPrefix,
+  onPlatformSendDispatch,
 }: ProactiveActivityParams): Promise<string> {
   try {
-    return await sendProactiveActivityRaw({ ctx, activity });
+    return await sendProactiveActivityRaw({ ctx, activity, onPlatformSendDispatch });
   } catch (err) {
     const classification = classifyMSTeamsSendError(err);
     const hint = formatMSTeamsSendErrorHint(classification);
@@ -489,6 +500,7 @@ export async function sendPollMSTeams(
     ctx,
     activity,
     errorPrefix: "msteams poll send",
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
   });
 
   log.info("sent poll", { conversationId, pollId: pollCard.pollId, messageId });
@@ -534,6 +546,7 @@ export async function sendAdaptiveCardMSTeams(
     ctx,
     activity,
     errorPrefix: "msteams card send",
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
   });
 
   log.info("sent adaptive card", { conversationId, messageId });

@@ -21,6 +21,7 @@ type SendIrcOptions = {
   replyTo?: string;
   target?: string;
   client?: IrcClient;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type SendIrcResult = {
@@ -86,6 +87,7 @@ export async function sendMessageIrc(
 
   const client = opts.client;
   if (client?.isReady()) {
+    await opts.onPlatformSendDispatch?.();
     client.sendPrivmsg(target, payload);
   } else {
     const transient = await connectIrcClient(
@@ -96,6 +98,7 @@ export async function sendMessageIrc(
     if (target.startsWith("#") || target.startsWith("&")) {
       transient.join(target);
     }
+    await opts.onPlatformSendDispatch?.();
     transient.sendPrivmsg(target, payload);
     transient.quit("sent");
   }

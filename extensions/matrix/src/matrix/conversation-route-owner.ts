@@ -30,7 +30,7 @@ export function resolveMatrixConversationRouteOwner(params: {
     resolveAgentRoute,
   });
   if (!result.bindingOwnerAvailable) {
-    return null;
+    return { kind: "unavailable" as const };
   }
   if (result.runtimeBindingId && !parseAgentSessionKey(result.route.sessionKey)?.agentId) {
     // Matrix's binding store cannot yet project plugin metadata. A runtime target without

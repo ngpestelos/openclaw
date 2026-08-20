@@ -291,9 +291,11 @@ async function sendMessageTelegramWithContext(
             label,
             requestParams,
             request: async (effectiveParams, effectiveLabel) => {
-              await opts.onPlatformSendDispatch?.();
               return await requestWithChatNotFound(
-                () => sender(effectiveParams),
+                async () => {
+                  await opts.onPlatformSendDispatch?.();
+                  return await sender(effectiveParams);
+                },
                 effectiveLabel,
                 shouldLog ? { shouldLog } : undefined,
               );

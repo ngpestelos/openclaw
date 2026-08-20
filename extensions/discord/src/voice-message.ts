@@ -405,6 +405,7 @@ export async function sendDiscordVoiceMessage(
   request: DiscordRetryRunner,
   silent?: boolean,
   token?: string,
+  onPlatformSendDispatch?: () => Promise<void>,
 ): Promise<{ id: string; channel_id: string }> {
   const filename = "voice-message.ogg";
   const fileSize = audioBuffer.byteLength;
@@ -490,7 +491,7 @@ export async function sendDiscordVoiceMessage(
         }
       },
       "voice-message",
-      { safety: "nonce-protected-create" },
+      { safety: "nonce-protected-create", onPlatformSendDispatch },
     )) as { id: string; channel_id: string };
   } catch (error) {
     // Only this final request can commit a message; upload/preflight failures cannot.

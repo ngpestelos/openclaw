@@ -114,17 +114,20 @@ async function sendFallbackDirect(
     msgType: string;
   },
   errorPrefix: string,
+  onPlatformSendDispatch?: () => Promise<void>,
 ): Promise<FeishuSendResult> {
   const response = await requestFeishuApi(
-    () =>
-      client.im.message.create({
+    async () => {
+      await onPlatformSendDispatch?.();
+      return await client.im.message.create({
         params: { receive_id_type: params.receiveIdType },
         data: {
           receive_id: params.receiveId,
           content: params.content,
           msg_type: params.msgType,
         },
-      }),
+      });
+    },
     errorPrefix,
     { includeNestedErrorLogId: true },
   );
@@ -153,10 +156,16 @@ export async function sendReplyOrFallbackDirect(
     };
     directErrorPrefix: string;
     replyErrorPrefix: string;
+    onPlatformSendDispatch?: () => Promise<void>;
   },
 ): Promise<FeishuSendResult> {
   if (!params.replyToMessageId) {
-    return sendFallbackDirect(client, params.directParams, params.directErrorPrefix);
+    return sendFallbackDirect(
+      client,
+      params.directParams,
+      params.directErrorPrefix,
+      params.onPlatformSendDispatch,
+    );
   }
 
   const replyTargetFallbackError =
@@ -169,15 +178,17 @@ export async function sendReplyOrFallbackDirect(
   let response: { code?: number; msg?: string; data?: { message_id?: string } };
   try {
     response = await requestFeishuApi(
-      () =>
-        client.im.message.reply({
+      async () => {
+        await params.onPlatformSendDispatch?.();
+        return await client.im.message.reply({
           path: { message_id: params.replyToMessageId! },
           data: {
             content: params.content,
             msg_type: params.msgType,
             ...(params.replyInThread ? { reply_in_thread: true } : {}),
           },
-        }),
+        });
+      },
       params.replyErrorPrefix,
       { includeNestedErrorLogId: true },
     );
@@ -188,13 +199,23 @@ export async function sendReplyOrFallbackDirect(
     if (replyTargetFallbackError) {
       throw replyTargetFallbackError;
     }
-    return sendFallbackDirect(client, params.directParams, params.directErrorPrefix);
+    return sendFallbackDirect(
+      client,
+      params.directParams,
+      params.directErrorPrefix,
+      params.onPlatformSendDispatch,
+    );
   }
   if (shouldFallbackFromReplyTarget(response)) {
     if (replyTargetFallbackError) {
       throw replyTargetFallbackError;
     }
-    return sendFallbackDirect(client, params.directParams, params.directErrorPrefix);
+    return sendFallbackDirect(
+      client,
+      params.directParams,
+      params.directErrorPrefix,
+      params.onPlatformSendDispatch,
+    );
   }
   assertFeishuMessageApiSuccess(response, params.replyErrorPrefix);
   return toFeishuSendResult(
@@ -451,6 +472,7 @@ type SendFeishuMessageParams = {
   mentions?: MentionTarget[];
   /** Account ID (optional, uses default if not specified) */
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 export async function sendMessageFeishu(
@@ -465,6 +487,7 @@ export async function sendMessageFeishu(
     allowTopLevelReplyFallback,
     mentions,
     accountId,
+    onPlatformSendDispatch,
   } = params;
   const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({ cfg, to, accountId });
   const tableMode = resolveMarkdownTableMode({
@@ -490,6 +513,7 @@ export async function sendMessageFeishu(
     directParams,
     directErrorPrefix: "Feishu send failed",
     replyErrorPrefix: "Feishu reply failed",
+    onPlatformSendDispatch,
   });
 }
 
@@ -502,11 +526,20 @@ type SendFeishuCardParams = {
   replyInThread?: boolean;
   allowTopLevelReplyFallback?: boolean;
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 export async function sendCardFeishu(params: SendFeishuCardParams): Promise<FeishuSendResult> {
-  const { cfg, to, card, replyToMessageId, replyInThread, allowTopLevelReplyFallback, accountId } =
-    params;
+  const {
+    cfg,
+    to,
+    card,
+    replyToMessageId,
+    replyInThread,
+    allowTopLevelReplyFallback,
+    accountId,
+    onPlatformSendDispatch,
+  } = params;
   const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({ cfg, to, accountId });
   const content = JSON.stringify(card);
 
@@ -520,6 +553,7 @@ export async function sendCardFeishu(params: SendFeishuCardParams): Promise<Feis
     directParams,
     directErrorPrefix: "Feishu card send failed",
     replyErrorPrefix: "Feishu card reply failed",
+    onPlatformSendDispatch,
   });
 }
 
@@ -653,6 +687,7 @@ export async function sendStructuredCardFeishu(params: {
   accountId?: string;
   header?: CardHeaderConfig;
   note?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<FeishuSendResult> {
   const {
     cfg,
@@ -665,6 +700,7 @@ export async function sendStructuredCardFeishu(params: {
     accountId,
     header,
     note,
+    onPlatformSendDispatch,
   } = params;
   let cardText = text;
   if (mentions && mentions.length > 0) {
@@ -679,6 +715,7 @@ export async function sendStructuredCardFeishu(params: {
     replyInThread,
     allowTopLevelReplyFallback,
     accountId,
+    onPlatformSendDispatch,
   });
 }
 
@@ -697,6 +734,7 @@ export async function sendMarkdownCardFeishu(params: {
   /** Mention target users */
   mentions?: MentionTarget[];
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<FeishuSendResult> {
   const {
     cfg,
@@ -707,6 +745,7 @@ export async function sendMarkdownCardFeishu(params: {
     allowTopLevelReplyFallback,
     mentions,
     accountId,
+    onPlatformSendDispatch,
   } = params;
   let cardText = text;
   if (mentions && mentions.length > 0) {
@@ -721,5 +760,6 @@ export async function sendMarkdownCardFeishu(params: {
     replyInThread,
     allowTopLevelReplyFallback,
     accountId,
+    onPlatformSendDispatch,
   });
 }

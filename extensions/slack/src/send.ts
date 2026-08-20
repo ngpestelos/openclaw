@@ -1157,14 +1157,6 @@ async function sendMessageSlackQueuedInner(params: {
     await opts.onDeliveryResult?.(deliveryResult);
     return deliveryResult;
   };
-  let didDispatch = false;
-  const dispatchOnce = async () => {
-    if (didDispatch) {
-      return;
-    }
-    didDispatch = true;
-    await opts.onPlatformSendDispatch?.();
-  };
   const explicitNativeDataFallbackBase = Object.hasOwn(opts, "nativeDataFallbackBaseText")
     ? (opts.nativeDataFallbackBaseText?.trim() ?? "")
     : undefined;
@@ -1239,7 +1231,6 @@ async function sendMessageSlackQueuedInner(params: {
         partIndex: 0,
         partCount: 1,
       });
-      await dispatchOnce();
       try {
         const { response } = await postSlackMessageBestEffort({
           client,
@@ -1252,6 +1243,7 @@ async function sendMessageSlackQueuedInner(params: {
           metadata: initialBlockMetadata,
           ...(usesOrderedBlockAccessibility ? { mrkdwn: false } : {}),
           unfurl,
+          onPlatformSendDispatch: opts.onPlatformSendDispatch,
         });
         const messageId = response.ts;
         deliveredChannelId = resolvePostedMessageChannelId(response, channelId);
@@ -1290,9 +1282,6 @@ async function sendMessageSlackQueuedInner(params: {
           partIndex,
           partCount: fallbackMessages.length,
         });
-        if (partIndex === 0) {
-          await dispatchOnce();
-        }
         const posted = await postSlackMessageBestEffort({
           client,
           channelId,
@@ -1304,6 +1293,7 @@ async function sendMessageSlackQueuedInner(params: {
           metadata,
           mrkdwn: false,
           unfurl,
+          onPlatformSendDispatch: opts.onPlatformSendDispatch,
         });
         const response = posted.response;
         sendIdentity = posted.identity;
@@ -1388,7 +1378,7 @@ async function sendMessageSlackQueuedInner(params: {
       threadTs: opts.threadTs,
       maxBytes: mediaMaxBytes,
       ...(opts.forceDocument ? { optimizeImages: false } : {}),
-      onPlatformSendDispatch: dispatchOnce,
+      onPlatformSendDispatch: opts.onPlatformSendDispatch,
       ...(delivery.upload ? { auditContext: delivery.upload.auditContext } : {}),
     });
     sentMessageIds.push(lastMessageId);
@@ -1423,9 +1413,6 @@ async function sendMessageSlackQueuedInner(params: {
           partIndex,
           partCount: chunksToPost.length,
         });
-    if (partIndex === 0 && !opts.mediaUrl) {
-      await dispatchOnce();
-    }
     const posted = await postSlackMessageBestEffort({
       client,
       channelId,
@@ -1436,6 +1423,7 @@ async function sendMessageSlackQueuedInner(params: {
       metadata,
       ...(opts.textIsSlackPlainText ? { mrkdwn: false } : {}),
       unfurl,
+      onPlatformSendDispatch: opts.onPlatformSendDispatch,
     });
     const response = posted.response;
     sendIdentity = posted.identity;

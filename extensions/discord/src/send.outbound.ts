@@ -243,7 +243,6 @@ export async function sendMessageDiscord(
     });
     let threadRes: { id: string; message?: { id: string; channel_id: string } };
     try {
-      await opts.onPlatformSendDispatch?.();
       threadRes = (await request(
         () =>
           createThread<{ id: string; message?: { id: string; channel_id: string } }>(
@@ -262,7 +261,7 @@ export async function sendMessageDiscord(
             },
           ),
         "forum-thread",
-        { safety: "non-idempotent-create" },
+        { safety: "non-idempotent-create", onPlatformSendDispatch: opts.onPlatformSendDispatch },
       )) as { id: string; message?: { id: string; channel_id: string } };
     } catch (err) {
       throw await buildDiscordSendError(err, {
@@ -458,11 +457,10 @@ export async function sendStickerDiscord(
     enforce_nonce: true,
     ...(flags ? { flags } : {}),
   };
-  await opts.onPlatformSendDispatch?.();
   const res = (await request(
     () => createChannelMessage<{ id: string; channel_id: string }>(rest, channelId, { body }),
     "sticker",
-    { safety: "nonce-protected-create" },
+    { safety: "nonce-protected-create", onPlatformSendDispatch: opts.onPlatformSendDispatch },
   )) as { id: string; channel_id: string };
   return toDiscordSendResult(res, channelId, { kind: "card" });
 }
@@ -486,11 +484,10 @@ export async function sendPollDiscord(
     enforce_nonce: true,
     ...(flags ? { flags } : {}),
   };
-  await opts.onPlatformSendDispatch?.();
   const res = (await request(
     () => createChannelMessage<{ id: string; channel_id: string }>(rest, channelId, { body }),
     "poll",
-    { safety: "nonce-protected-create" },
+    { safety: "nonce-protected-create", onPlatformSendDispatch: opts.onPlatformSendDispatch },
   )) as { id: string; channel_id: string };
   return toDiscordSendResult(res, channelId, { kind: "poll", threadId: opts.threadId });
 }

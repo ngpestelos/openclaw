@@ -12,7 +12,14 @@ import {
 import { createMockPluginRegistry } from "../plugins/hooks.test-helpers.js";
 import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
 import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
-import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
+import {
+  assertConversationPlatformSendAuthorized,
+  resolveConversationRouteEligibilityForAgent,
+} from "./conversation-route-ownership.js";
+
+const isConversationRouteEligibleForAgent = (
+  params: Parameters<typeof resolveConversationRouteEligibilityForAgent>[0],
+) => resolveConversationRouteEligibilityForAgent(params) === "eligible";
 
 const fallbackBinding = {
   type: "route" as const,
@@ -128,6 +135,11 @@ describe("isConversationRouteEligibleForAgent", () => {
       expected: true,
     },
     { name: "fails closed when the plugin recognizes no owner", owner: null, expected: false },
+    {
+      name: "fails closed while the plugin owner store is unavailable",
+      owner: { kind: "unavailable" },
+      expected: false,
+    },
     { name: "falls back when the plugin declines", owner: undefined, expected: false },
   ] as const)("$name", ({ owner, expected }) => {
     const resolveConversationRouteOwner = vi.fn(() => owner);
@@ -178,6 +190,48 @@ describe("isConversationRouteEligibleForAgent", () => {
         threadId: "42",
       },
     });
+  });
+
+  it("keeps a queued send retryable while its owner store is unavailable", () => {
+    const conversation = {
+      conversationRef: "conv_0123456789abcdef0123456789abcdef",
+      channel: "telegram",
+      accountId: "default",
+      kind: "group" as const,
+      peerId: "-100123:topic:42",
+      target: "telegram:-100123:topic:42",
+      firstSeenAt: 1,
+      lastSeenAt: 1,
+    };
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "telegram" }),
+            messaging: {
+              resolveConversationRouteOwner: () => ({ kind: "unavailable" as const }),
+            },
+          },
+        },
+      ]),
+    );
+
+    expect(() =>
+      assertConversationPlatformSendAuthorized({
+        config: {},
+        agentId: "main",
+        conversationRef: "conv_temporarily_unavailable",
+        scope: { agentId: "main", storePath: "/tmp/unused-session-store" },
+        resolveConversation: () => conversation,
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining("temporarily unavailable"),
+        retryable: true,
+      }),
+    );
   });
 
   it("does not let a plugin fallback bypass unknown contextual provenance", () => {
@@ -320,15 +374,15 @@ describe("isConversationRouteEligibleForAgent", () => {
     expect(touch).not.toHaveBeenCalled();
   });
 
-  it("revokes detached eligibility while an adapter-owned store reloads", () => {
+  it("defers detached eligibility while an adapter-owned store reloads", () => {
     const conversation = {
-      channel: "discord",
+      channel: "feishu",
       accountId: "default",
       kind: "channel" as const,
       peerId: "support-room",
     };
     const adapter = {
-      channel: "discord",
+      channel: "feishu",
       accountId: "default",
       listBySession: () => [],
       resolveByConversation: () => ({
@@ -336,7 +390,7 @@ describe("isConversationRouteEligibleForAgent", () => {
         targetSessionKey: "agent:finance:bound",
         targetKind: "session" as const,
         conversation: {
-          channel: "discord",
+          channel: "feishu",
           accountId: "default",
           conversationId: "support-room",
         },
@@ -348,10 +402,10 @@ describe("isConversationRouteEligibleForAgent", () => {
     setActivePluginRegistry(
       createTestRegistry([
         {
-          pluginId: "discord",
+          pluginId: "feishu",
           source: "test",
           plugin: {
-            ...createChannelTestPluginBase({ id: "discord" }),
+            ...createChannelTestPluginBase({ id: "feishu" }),
             conversationBindings: {
               supportsCurrentConversationBinding: true,
               bindingStore: "adapter" as const,
@@ -365,7 +419,7 @@ describe("isConversationRouteEligibleForAgent", () => {
       isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
     ).toBe(true);
     unregisterSessionBindingAdapter({
-      channel: "discord",
+      channel: "feishu",
       accountId: "default",
       adapter,
     });
@@ -375,6 +429,21 @@ describe("isConversationRouteEligibleForAgent", () => {
     expect(isConversationRouteEligibleForAgent({ config: {}, agentId: "main", conversation })).toBe(
       false,
     );
+    expect(
+      resolveConversationRouteEligibilityForAgent({
+        config: {},
+        agentId: "finance",
+        conversation,
+      }),
+    ).toBe("unavailable");
+    registerSessionBindingAdapter(adapter);
+    expect(
+      resolveConversationRouteEligibilityForAgent({
+        config: {},
+        agentId: "finance",
+        conversation,
+      }),
+    ).toBe("eligible");
   });
 
   it("denies every agent while an active plugin owns the conversation", () => {

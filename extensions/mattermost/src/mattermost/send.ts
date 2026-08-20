@@ -65,6 +65,7 @@ type MattermostSendOpts = {
   onDmChannelResolution?: (resolution: PromiseLike<unknown>) => void;
   /** Report the provider-finalized send before later fallible bookkeeping. */
   onDeliveryResult?: (result: MattermostSendResult) => Promise<void> | void;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 export type MattermostSendResult = {
@@ -492,6 +493,7 @@ export async function sendMessageMattermost(
     throw new Error("Mattermost message is empty");
   }
 
+  await opts.onPlatformSendDispatch?.();
   const post = await createMattermostPost(client, {
     channelId,
     message,

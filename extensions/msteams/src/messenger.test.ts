@@ -485,26 +485,32 @@ describe("msteams messenger", () => {
       ).rejects.toBeInstanceOf(PlatformMessageNotDispatchedError);
     });
 
-    it("retries thread sends after a replay-safe HTTP 429", async () => {
+    it("revalidates before retrying a replay-safe HTTP 429", async () => {
       const attempts: string[] = [];
       const retryEvents: Array<{ nextAttempt: number; delayMs: number }> = [];
+      let dispatches = 0;
 
-      const ctx = {
-        sendActivity: createRecordedSendActivity(attempts, 429),
-      };
-      const ids = await sendMSTeamsMessages({
-        replyStyle: "thread",
-        app: createMockApp(),
-        appId: "app123",
-        conversationRef: baseRef,
-        context: ctx,
-        messages: [{ text: "one" }],
-        retry: { maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0 },
-        onRetry: (e) => retryEvents.push({ nextAttempt: e.nextAttempt, delayMs: e.delayMs }),
-      });
+      await expect(
+        sendMSTeamsMessages({
+          replyStyle: "thread",
+          app: createMockApp(),
+          appId: "app123",
+          conversationRef: baseRef,
+          context: { sendActivity: createRecordedSendActivity(attempts, 429) },
+          messages: [{ text: "one" }],
+          retry: { maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0 },
+          onRetry: (e) => retryEvents.push({ nextAttempt: e.nextAttempt, delayMs: e.delayMs }),
+          onPlatformSendDispatch: async () => {
+            dispatches += 1;
+            if (dispatches === 2) {
+              throw new Error("route owner changed");
+            }
+          },
+        }),
+      ).rejects.toThrow("route owner changed");
 
-      expect(attempts).toEqual(["one", "one"]);
-      expect(ids).toEqual(["id:one"]);
+      expect(dispatches).toBe(2);
+      expect(attempts).toEqual(["one"]);
       expect(retryEvents).toEqual([{ nextAttempt: 2, delayMs: 0 }]);
     });
 

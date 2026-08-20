@@ -39,6 +39,7 @@ type WhatsAppSendTextOptions = {
   preserveLeadingWhitespace?: boolean;
   /** Report each accepted internal platform send before the next fallible send. */
   onDeliveryResult?: (result: { messageId: string; toJid: string }) => Promise<void> | void;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 type WhatsAppSendMessage = (
   to: string,
@@ -48,7 +49,12 @@ type WhatsAppSendMessage = (
 type WhatsAppSendPoll = (
   to: string,
   poll: Parameters<NonNullable<ChannelOutboundAdapter["sendPoll"]>>[0]["poll"],
-  options: { verbose: boolean; accountId?: string; cfg: OpenClawConfig },
+  options: {
+    verbose: boolean;
+    accountId?: string;
+    cfg: OpenClawConfig;
+    onPlatformSendDispatch?: () => Promise<void>;
+  },
 ) => Promise<{ messageId: string; toJid: string }>;
 
 type CreateWhatsAppOutboundBaseParams = {
@@ -155,6 +161,7 @@ export function createWhatsAppOutboundBase({
         gifPlayback,
         replyToId,
         onDeliveryResult,
+        onPlatformSendDispatch,
       }) => {
         const normalizedText = normalizeText(text);
         if (skipEmptyText && !normalizedText) {
@@ -176,6 +183,7 @@ export function createWhatsAppOutboundBase({
           cfg,
           accountId: accountId ?? undefined,
           gifPlayback,
+          onPlatformSendDispatch,
           ...(quotedMessageKey ? { quotedMessageKey } : {}),
           ...(onDeliveryResult
             ? {
@@ -201,6 +209,7 @@ export function createWhatsAppOutboundBase({
         forceDocument,
         replyToId,
         onDeliveryResult,
+        onPlatformSendDispatch,
       }) => {
         const lookupAccountId = resolveQuoteLookupAccountId(cfg, accountId);
         const quotedMessageKey = resolveQuotedMessageKey({
@@ -224,6 +233,7 @@ export function createWhatsAppOutboundBase({
           accountId: accountId ?? undefined,
           gifPlayback,
           forceDocument,
+          onPlatformSendDispatch,
           ...(quotedMessageKey ? { quotedMessageKey } : {}),
           ...(onDeliveryResult
             ? {
@@ -234,11 +244,12 @@ export function createWhatsAppOutboundBase({
             : {}),
         });
       },
-      sendPoll: async ({ cfg, to, poll, accountId }) =>
+      sendPoll: async ({ cfg, to, poll, accountId, onPlatformSendDispatch }) =>
         await sendPollWhatsApp(to, poll, {
           verbose: shouldLogVerbose(),
           accountId: accountId ?? undefined,
           cfg,
+          onPlatformSendDispatch,
         }),
     }),
   };

@@ -154,11 +154,12 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
       messageSendingHooks: true,
     },
   },
-  sendText: async ({ cfg, to, text, accountId, replyToId, threadId }) => {
+  sendText: async ({ cfg, to, text, accountId, replyToId, threadId, onPlatformSendDispatch }) => {
     const { account, parsed } = resolveOutboundContext({ cfg, accountId, to });
     return withHttpPokeAccountApi(account, async (api) => {
       const fromShip = normalizeShip(account.ship);
       if (parsed.kind === "dm") {
+        await onPlatformSendDispatch?.();
         return await sendDm({
           api,
           fromShip,
@@ -166,6 +167,7 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
           text,
         });
       }
+      await onPlatformSendDispatch?.();
       return await sendGroupMessage({
         api,
         fromShip,
@@ -176,7 +178,16 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
       });
     });
   },
-  sendMedia: async ({ cfg, to, text, mediaUrl, accountId, replyToId, threadId }) => {
+  sendMedia: async ({
+    cfg,
+    to,
+    text,
+    mediaUrl,
+    accountId,
+    replyToId,
+    threadId,
+    onPlatformSendDispatch,
+  }) => {
     const { account, parsed } = resolveOutboundContext({ cfg, accountId, to });
 
     configureClient({
@@ -193,6 +204,7 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
       const story = buildMediaStory(text, uploadedUrl);
 
       if (parsed.kind === "dm") {
+        await onPlatformSendDispatch?.();
         return await sendDmWithStory({
           api,
           fromShip,
@@ -201,6 +213,7 @@ export const tlonRuntimeOutbound: ChannelOutboundAdapter = {
           kind: "media",
         });
       }
+      await onPlatformSendDispatch?.();
       return await sendGroupMessageWithStory({
         api,
         fromShip,

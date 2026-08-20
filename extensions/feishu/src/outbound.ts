@@ -360,6 +360,7 @@ async function sendCommentThreadReply(params: {
   text: string;
   replyId?: string;
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }) {
   const target = parseFeishuCommentTarget(params.to);
   if (!target) {
@@ -374,6 +375,7 @@ async function sendCommentThreadReply(params: {
       file_type: target.fileType,
       comment_id: target.commentId,
       content: params.text,
+      onPlatformSendDispatch: params.onPlatformSendDispatch,
     });
     return {
       messageId:
@@ -407,14 +409,25 @@ async function sendOutboundText(params: {
   replyToIdSource?: FeishuSendTextContext["replyToIdSource"];
   replyToMode?: FeishuSendTextContext["replyToMode"];
   onDeliveryResult?: FeishuSendTextContext["onDeliveryResult"];
+  onPlatformSendDispatch?: () => Promise<void>;
 }) {
-  const { cfg, to, text, accountId, replyToMessageId, replyInThread, onDeliveryResult } = params;
+  const {
+    cfg,
+    to,
+    text,
+    accountId,
+    replyToMessageId,
+    replyInThread,
+    onDeliveryResult,
+    onPlatformSendDispatch,
+  } = params;
   const commentResult = await sendCommentThreadReply({
     cfg,
     to,
     text,
     replyId: replyToMessageId,
     accountId,
+    onPlatformSendDispatch,
   });
   if (commentResult) {
     return await reportFeishuOutboundDelivery(commentResult, onDeliveryResult);
@@ -435,6 +448,7 @@ async function sendOutboundText(params: {
         accountId,
         replyToMessageId,
         replyInThread,
+        onPlatformSendDispatch,
       }),
       onDeliveryResult,
     );
@@ -473,6 +487,7 @@ async function sendOutboundText(params: {
         accountId,
         replyToMessageId: preserveThread ? replyToMessageId : nextReplyToMessageId(),
         replyInThread: preserveThread ? true : i === 0 ? replyInThread : undefined,
+        onPlatformSendDispatch,
       }),
       onDeliveryResult,
     );
@@ -617,6 +632,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
   },
   renderPresentation: renderFeishuPresentationPayload,
   sendPayload: async (ctx) => {
+    const onPlatformSendDispatch = ctx.onPlatformSendDispatch;
     const { payload, presentationFallback } = consumeFeishuPresentationFallbackMarker(ctx.payload);
     const ttsSupplement = getReplyPayloadTtsSupplement(payload);
     if (parseFeishuCommentTarget(ctx.to)) {
@@ -714,6 +730,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
                 replyToMessageId,
                 replyInThread,
                 accountId: ctx.accountId ?? undefined,
+                onPlatformSendDispatch,
               }),
             ),
           );
@@ -764,6 +781,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
               mediaReadFile: ctx.mediaReadFile,
               replyToMessageId,
               replyInThread,
+              onPlatformSendDispatch,
               ...(payload.audioAsVoice === true || ctx.audioAsVoice === true
                 ? { audioAsVoice: true }
                 : {}),
@@ -778,6 +796,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
               replyToMessageId,
               replyInThread,
               accountId: ctx.accountId ?? undefined,
+              onPlatformSendDispatch,
             });
           },
         }),
@@ -800,12 +819,19 @@ export const feishuOutbound: ChannelOutboundAdapter = {
       mediaReadFile,
       identity,
       onDeliveryResult,
+      onPlatformSendDispatch: rawOnPlatformSendDispatch,
     }) => {
+      const onPlatformSendDispatch = rawOnPlatformSendDispatch;
       const { replyToMessageId, replyInThread } = resolveFeishuReplyMode({
         replyToId,
         threadId,
       });
-      const deliveryOptions = { replyToIdSource, replyToMode, onDeliveryResult };
+      const deliveryOptions = {
+        replyToIdSource,
+        replyToMode,
+        onDeliveryResult,
+        onPlatformSendDispatch,
+      };
       // Scheme A compatibility shim:
       // when upstream accidentally returns a local image path as plain text,
       // auto-upload and send as Feishu image message instead of leaking path text.
@@ -823,6 +849,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
             mediaAccess,
             mediaLocalRoots,
             mediaReadFile,
+            onPlatformSendDispatch,
           });
         } catch (err) {
           if (isChannelPartialDeliveryError(err)) {
@@ -873,6 +900,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
               accountId: accountId ?? undefined,
               replyToMessageId,
               replyInThread,
+              onPlatformSendDispatch,
             }),
             onDeliveryResult,
           ),
@@ -899,6 +927,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
               replyInThread,
               accountId: accountId ?? undefined,
               header: header?.title ? header : undefined,
+              onPlatformSendDispatch,
             }),
             onDeliveryResult,
           ),
@@ -931,7 +960,9 @@ export const feishuOutbound: ChannelOutboundAdapter = {
       replyToMode,
       threadId,
       onDeliveryResult,
+      onPlatformSendDispatch: rawOnPlatformSendDispatch,
     }) => {
+      const onPlatformSendDispatch = rawOnPlatformSendDispatch;
       const { normalizedReplyToId } = resolveFeishuReplyMode({
         replyToId,
         threadId,
@@ -948,7 +979,12 @@ export const feishuOutbound: ChannelOutboundAdapter = {
         });
         return { replyToMessageId, replyInThread };
       };
-      const deliveryOptions = { replyToIdSource, replyToMode, onDeliveryResult };
+      const deliveryOptions = {
+        replyToIdSource,
+        replyToMode,
+        onDeliveryResult,
+        onPlatformSendDispatch,
+      };
       if (parseFeishuCommentTarget(to)) {
         const commentText = mediaUrl?.trim()
           ? await buildFeishuMediaFallbackText({
@@ -1014,6 +1050,7 @@ export const feishuOutbound: ChannelOutboundAdapter = {
           mediaReadFile,
           ...mediaReplyMode,
           ...(audioAsVoice === true ? { audioAsVoice: true } : {}),
+          onPlatformSendDispatch,
         });
       } catch (err) {
         if (isChannelPartialDeliveryError(err)) {

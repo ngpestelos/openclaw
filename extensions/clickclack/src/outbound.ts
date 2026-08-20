@@ -64,8 +64,8 @@ async function createTargetMessage(params: {
     });
   }
   if (parsed.kind === "dm") {
-    await params.onPlatformSendDispatch?.();
     const dm = await params.client.createDirectConversation(params.workspaceId, [parsed.id]);
+    await params.onPlatformSendDispatch?.();
     return await params.client.createDirectMessage(dm.id, params.text, {
       quotedMessageId: replyToId || undefined,
       nonce: params.nonce,
@@ -117,23 +117,14 @@ function textDeliveryNonce(params: {
   return digest ? `openclaw-text:${digest}` : undefined;
 }
 
-function createDispatchOnce(onPlatformSendDispatch?: () => Promise<void>): () => Promise<void> {
-  let dispatched = false;
-  return async () => {
-    if (dispatched) {
-      return;
-    }
-    await onPlatformSendDispatch?.();
-    dispatched = true;
-  };
-}
-
 async function attachUploadRetrySafe(params: {
   client: ClickClackClient;
   messageId: string;
   uploadId: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<void> {
   try {
+    await params.onPlatformSendDispatch?.();
     await params.client.attachUpload(params.messageId, params.uploadId);
   } catch (firstError) {
     // The attachment write is idempotent. A read distinguishes a lost success
@@ -147,6 +138,7 @@ async function attachUploadRetrySafe(params: {
       // A failed reconciliation read must not prevent the safe attach retry.
     }
     try {
+      await params.onPlatformSendDispatch?.();
       await params.client.attachUpload(params.messageId, params.uploadId);
     } catch {
       throw firstError;
@@ -198,7 +190,6 @@ export async function sendClickClackText(params: {
   }
   const { account, client } = createOutboundContext(params);
   const workspaceId = await resolveWorkspaceId(client, account.workspace);
-  const dispatch = createDispatchOnce(params.onPlatformSendDispatch);
   const message = await createTargetMessage({
     client,
     workspaceId,
@@ -211,7 +202,7 @@ export async function sendClickClackText(params: {
       deliveryQueueId: params.deliveryQueueId,
       deliveryPartIndex: params.deliveryPartIndex,
     }),
-    onPlatformSendDispatch: dispatch,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
   });
   return message.id;
 }
@@ -252,7 +243,6 @@ export async function sendClickClackMedia(params: {
   const persistedUpload = nonces.upload
     ? await client.findUploadByNonce({ workspaceId, nonce: nonces.upload })
     : undefined;
-  const dispatch = createDispatchOnce(params.onPlatformSendDispatch);
   let upload = persistedUpload;
   let mediaFilename = preloadedMedia?.fileName?.trim();
   if (!upload) {
@@ -267,7 +257,6 @@ export async function sendClickClackMedia(params: {
     const contentType = media.contentType?.trim() || "application/octet-stream";
     const filename = media.fileName?.trim() || `attachment${extensionForMime(contentType) ?? ""}`;
     mediaFilename = filename;
-    await dispatch();
     upload = await client.createUpload({
       workspaceId,
       buffer: media.buffer,
@@ -291,11 +280,16 @@ export async function sendClickClackMedia(params: {
     threadId: params.threadId,
     replyToId: params.replyToId,
     nonce: nonces.message,
-    onPlatformSendDispatch: dispatch,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
   });
   // Do not report delivery until ClickClack has durably attached the upload and
   // emitted message.updated; otherwise callers would accept a text-only receipt.
-  await attachUploadRetrySafe({ client, messageId: message.id, uploadId: upload.id });
+  await attachUploadRetrySafe({
+    client,
+    messageId: message.id,
+    uploadId: upload.id,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
+  });
   return message.id;
 }
 

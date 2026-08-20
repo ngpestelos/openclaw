@@ -225,6 +225,7 @@ export const buzzOutboundAdapter = {
     accountId,
     threadId,
     replyToId,
+    onPlatformSendDispatch,
   }: {
     cfg: OpenClawConfig;
     to: string;
@@ -232,6 +233,7 @@ export const buzzOutboundAdapter = {
     accountId?: string | null;
     threadId?: string | number | null;
     replyToId?: string | number | null;
+    onPlatformSendDispatch?: () => Promise<void>;
   }) => {
     const runtime = getBuzzRuntime();
     const resolvedAccountId = accountId ?? resolveDefaultBuzzAccountId(cfg);
@@ -256,6 +258,7 @@ export const buzzOutboundAdapter = {
       threadId: threadId == null ? undefined : String(threadId),
       replyToId: replyToId == null ? undefined : String(replyToId),
     };
+    await onPlatformSendDispatch?.();
     const messageId = bus
       ? await bus.sendText(outboundMessage)
       : await sendBuzzTextOneShot({

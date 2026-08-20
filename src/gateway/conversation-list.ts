@@ -22,7 +22,7 @@ import { resolveOutboundChannelPlugin } from "../infra/outbound/channel-resoluti
 import { resolveOutboundSessionRoute } from "../infra/outbound/outbound-session.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { defaultRuntime } from "../runtime.js";
-import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
+import { resolveConversationRouteEligibilityForAgent } from "./conversation-route-ownership.js";
 
 const log = createSubsystemLogger("gateway/conversations");
 
@@ -199,11 +199,11 @@ async function discoverChannelAddresses(params: {
         continue;
       }
       if (
-        !isConversationRouteEligibleForAgent({
+        resolveConversationRouteEligibilityForAgent({
           config: params.config,
           agentId: params.agentId,
           conversation: identity,
-        })
+        }) !== "eligible"
       ) {
         continue;
       }
@@ -262,11 +262,11 @@ export async function runGatewayConversationList(
   const consider = (conversations: readonly ConversationRecord[]) => {
     for (const conversation of conversations) {
       if (
-        isConversationRouteEligibleForAgent({
+        resolveConversationRouteEligibilityForAgent({
           config: params.config,
           agentId: params.agentId,
           conversation,
-        }) &&
+        }) === "eligible" &&
         (!query ||
           discovery?.discoveredConversationRefs.has(conversation.conversationRef) === true ||
           matchesConversationQuery(conversation, query))

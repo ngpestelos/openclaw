@@ -116,6 +116,7 @@ type IMessageSendOpts = {
   withRemoteFile?: typeof withIMessageRemoteFile;
   runCliJson?: (args: readonly string[]) => Promise<Record<string, unknown>>;
   onDeliveryResult?: (result: IMessageDeliveryProgress) => Promise<void> | void;
+  onPlatformSendDispatch?: () => Promise<void>;
   resolveMessageGuidImpl?: (params: {
     dbPath?: string;
     messageId: string;
@@ -636,6 +637,7 @@ async function trySendAttachmentForTarget(params: {
   ) => Promise<Record<string, unknown>>;
   withRemoteFile: typeof withIMessageRemoteFile;
   resolveMessageGuidImpl?: IMessageSendOpts["resolveMessageGuidImpl"];
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<IMessageSendResult | null> {
   if (params.audioAsVoice && params.sendTransport === "applescript") {
     throw new Error(
@@ -730,10 +732,12 @@ async function trySendAttachmentForTarget(params: {
             } else {
               rpcParams.chat_identifier = attachmentChatTarget;
             }
+            await params.onPlatformSendDispatch?.();
             return await requestRpc("send.attachment", rpcParams);
           },
         });
       }
+      await params.onPlatformSendDispatch?.();
       return await params.runCliJson([
         "send-attachment",
         "--chat",
@@ -820,6 +824,7 @@ export async function sendMessageIMessage(
   opts: IMessageSendOpts,
 ): Promise<IMessageSendResult> {
   const cfg = requireRuntimeConfig(opts.config, "iMessage send");
+  const onPlatformSendDispatch = opts.onPlatformSendDispatch;
   const account =
     opts.account ??
     resolveIMessageAccount({
@@ -965,6 +970,7 @@ export async function sendMessageIMessage(
       requestRpc: requestOwnedRpc,
       withRemoteFile,
       resolveMessageGuidImpl: opts.resolveMessageGuidImpl,
+      onPlatformSendDispatch,
     });
     if (attachmentResult) {
       if (!message.trim()) {
@@ -988,6 +994,7 @@ export async function sendMessageIMessage(
           ...(opts.client ? { client: opts.client } : {}),
           mediaUrl: undefined,
           onDeliveryResult: undefined,
+          onPlatformSendDispatch,
         });
       } catch (error: unknown) {
         // Only the attachment was visible; never attribute the failed caption to it.
@@ -1061,8 +1068,10 @@ export async function sendMessageIMessage(
     await client.stop();
   };
   const requestSuccessfulSend = async (sendParams: Record<string, unknown>) => {
-    const request = async (nativeParams: Record<string, unknown>) =>
-      await requestIMessageRpcSend(client, "send", nativeParams, timeoutMs);
+    const request = async (nativeParams: Record<string, unknown>) => {
+      await onPlatformSendDispatch?.();
+      return await requestIMessageRpcSend(client, "send", nativeParams, timeoutMs);
+    };
     const response = filePath
       ? await withOriginalIMessageAttachmentPath(filePath, async (attachmentPath) => {
           if (remoteHost) {

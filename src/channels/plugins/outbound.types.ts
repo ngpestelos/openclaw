@@ -49,7 +49,7 @@ export type ChannelOutboundContext = {
   deliveryPartCount?: number;
   /** @internal Channel-valid id reserved before a correlated conversation turn is sent. */
   preparedMessageId?: string;
-  /** @internal Refresh durable timing before recipient-visible or finalizing platform I/O. */
+  /** @internal Revalidate immediately before each recipient-visible or finalizing I/O attempt. */
   onPlatformSendDispatch?: () => Promise<void>;
   /** @internal Report each completed platform sub-send before starting another fallible step. */
   onDeliveryResult?: (result: OutboundDeliveryResult) => Promise<void> | void;

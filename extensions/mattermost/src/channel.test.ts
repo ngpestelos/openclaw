@@ -1681,6 +1681,61 @@ describe("mattermostPlugin", () => {
     it.each([
       {
         name: "text",
+        send: async (onPlatformSendDispatch: () => Promise<void>) =>
+          await requireMattermostSendText()({
+            cfg: createMattermostTestConfig(),
+            to: "channel:CHAN1",
+            text: "provider-final",
+            onPlatformSendDispatch,
+          }),
+      },
+      {
+        name: "media",
+        send: async (onPlatformSendDispatch: () => Promise<void>) =>
+          await requireMattermostSendMedia()({
+            cfg: createMattermostTestConfig(),
+            to: "channel:CHAN1",
+            text: "provider-final",
+            mediaUrl: "https://example.com/report.png",
+            onPlatformSendDispatch,
+          }),
+      },
+      {
+        name: "payload",
+        send: async (onPlatformSendDispatch: () => Promise<void>) =>
+          await requireMattermostSendPayload()({
+            cfg: createMattermostTestConfig(),
+            to: "channel:CHAN1",
+            text: "provider-final",
+            payload: {
+              text: "provider-final",
+              channelData: { mattermost: { attachmentText: "attachment" } },
+            },
+            onPlatformSendDispatch,
+          }),
+      },
+    ])("blocks $name provider I/O when platform dispatch is rejected", async ({ send }) => {
+      const rejection = new Error("conversation owner changed");
+      const providerWrite = vi.fn();
+      sendMessageMattermostMock.mockImplementationOnce(
+        async (_to: string, _text: string, options: Record<string, unknown>) => {
+          await (options.onPlatformSendDispatch as (() => Promise<void>) | undefined)?.();
+          providerWrite();
+          return { messageId: "post-final", channelId: "CHAN1" };
+        },
+      );
+
+      await expect(
+        send(async () => {
+          throw rejection;
+        }),
+      ).rejects.toBe(rejection);
+      expect(providerWrite).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        name: "text",
         send: async (onDeliveryResult: MattermostSendTextParams["onDeliveryResult"]) =>
           await requireMattermostSendText()({
             cfg: createMattermostTestConfig(),

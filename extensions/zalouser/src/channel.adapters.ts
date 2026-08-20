@@ -62,6 +62,7 @@ type ZalouserSendTextContext = {
   accountId?: string | null;
   cfg: OpenClawConfig;
   onDeliveryResult?: (result: ChannelMessageSendResult) => Promise<void> | void;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type ZalouserSendMediaContext = ZalouserSendTextContext & {
@@ -127,6 +128,7 @@ async function sendZalouserTextFromContext({
   accountId,
   cfg,
   onDeliveryResult,
+  onPlatformSendDispatch,
 }: ZalouserSendTextContext) {
   const { sendMessageZalouser } = await loadZalouserChannelRuntime();
   const account = resolveZalouserAccountSync({ cfg, accountId });
@@ -137,6 +139,7 @@ async function sendZalouserTextFromContext({
     textMode: "markdown",
     textChunkMode: resolveZalouserOutboundChunkMode(cfg, account.accountId),
     textChunkLimit: resolveZalouserOutboundTextChunkLimit(cfg, account.accountId),
+    onPlatformSendDispatch,
     onDeliveryResult: async (progress) => {
       await onDeliveryResult?.(toZalouserMessageSendResult(progress));
     },
@@ -153,6 +156,7 @@ async function sendZalouserMediaFromContext({
   mediaLocalRoots,
   mediaReadFile,
   onDeliveryResult,
+  onPlatformSendDispatch,
 }: ZalouserSendMediaContext) {
   const { sendMessageZalouser } = await loadZalouserChannelRuntime();
   const account = resolveZalouserAccountSync({ cfg, accountId });
@@ -166,6 +170,7 @@ async function sendZalouserMediaFromContext({
     textMode: "markdown",
     textChunkMode: resolveZalouserOutboundChunkMode(cfg, account.accountId),
     textChunkLimit: resolveZalouserOutboundTextChunkLimit(cfg, account.accountId),
+    onPlatformSendDispatch,
     onDeliveryResult: async (progress) => {
       await onDeliveryResult?.(toZalouserMessageSendResult(progress));
     },

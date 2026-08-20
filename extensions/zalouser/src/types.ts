@@ -71,6 +71,7 @@ export type ZaloSendOptions = {
   textChunkMode?: "length" | "newline";
   textChunkLimit?: number;
   textStyles?: Style[];
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 export type ZaloSendResult = {

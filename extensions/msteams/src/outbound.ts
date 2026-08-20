@@ -34,9 +34,13 @@ type MSTeamsSendConfig = Parameters<typeof sendMessageMSTeams>[0]["cfg"];
 type MSTeamsSendResult = { messageId: string; conversationId: string };
 type MSTeamsMediaSendOptions = Pick<
   Parameters<typeof sendMessageMSTeams>[0],
-  "mediaUrl" | "mediaAccess" | "mediaLocalRoots" | "mediaReadFile"
+  "mediaUrl" | "mediaAccess" | "mediaLocalRoots" | "mediaReadFile" | "onPlatformSendDispatch"
 >;
-type MSTeamsTextSendFn = (to: string, text: string) => Promise<MSTeamsSendResult>;
+type MSTeamsTextSendFn = (
+  to: string,
+  text: string,
+  opts?: Pick<Parameters<typeof sendMessageMSTeams>[0], "onPlatformSendDispatch">,
+) => Promise<MSTeamsSendResult>;
 type MSTeamsMediaSendFn = (
   to: string,
   text: string,
@@ -70,7 +74,7 @@ function resolveMSTeamsTextSend(params: {
 }): MSTeamsTextSendFn {
   return (
     resolveOutboundSendDep<MSTeamsTextSendFn>(params.deps, "msteams") ??
-    ((to, text) => sendMessageMSTeams({ cfg: params.cfg, to, text }))
+    ((to, text, opts) => sendMessageMSTeams({ cfg: params.cfg, to, text, ...opts }))
   );
 }
 
@@ -132,6 +136,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
     payload,
     deps,
     onDeliveryResult,
+    onPlatformSendDispatch,
     threadId,
   }) => {
     const deliveryTarget = resolveMSTeamsThreadTarget(to, threadId);
@@ -146,6 +151,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
         cfg,
         to: deliveryTarget,
         card: presentationCard as Record<string, unknown>,
+        onPlatformSendDispatch,
       });
       return attachChannelToResult("msteams", toMSTeamsOutboundResult(result));
     }
@@ -171,6 +177,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
             mediaAccess,
             mediaLocalRoots,
             mediaReadFile,
+            onPlatformSendDispatch,
           }),
       });
       if (result) {
@@ -188,7 +195,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
       );
       let result: Awaited<ReturnType<MSTeamsTextSendFn>>;
       for (const chunk of chunks) {
-        result = await send(deliveryTarget, chunk);
+        result = await send(deliveryTarget, chunk, { onPlatformSendDispatch });
         await onDeliveryResult?.(attachChannelToResult("msteams", toMSTeamsOutboundResult(result)));
       }
       return attachChannelToResult("msteams", toMSTeamsOutboundResult(result!));
@@ -197,9 +204,11 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
   },
   ...createAttachedChannelResultAdapter({
     channel: "msteams",
-    sendText: async ({ cfg, to, text, deps, threadId }) => {
+    sendText: async ({ cfg, to, text, deps, threadId, onPlatformSendDispatch }) => {
       const send = resolveMSTeamsTextSend({ cfg, deps });
-      return toMSTeamsOutboundResult(await send(resolveMSTeamsThreadTarget(to, threadId), text));
+      return toMSTeamsOutboundResult(
+        await send(resolveMSTeamsThreadTarget(to, threadId), text, { onPlatformSendDispatch }),
+      );
     },
     sendMedia: async ({
       cfg,
@@ -211,6 +220,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
       mediaReadFile,
       deps,
       threadId,
+      onPlatformSendDispatch,
     }) => {
       const send = resolveMSTeamsMediaSend({ cfg, deps });
       return toMSTeamsOutboundResult(
@@ -219,10 +229,11 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
           mediaAccess,
           mediaLocalRoots,
           mediaReadFile,
+          onPlatformSendDispatch,
         }),
       );
     },
-    sendPoll: async ({ cfg, to, poll, threadId }) => {
+    sendPoll: async ({ cfg, to, poll, threadId, onPlatformSendDispatch }) => {
       const maxSelections = poll.maxSelections ?? 1;
       const result = await sendPollMSTeams({
         cfg,
@@ -230,6 +241,7 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
         question: poll.question,
         options: poll.options,
         maxSelections,
+        onPlatformSendDispatch,
       });
       const pollStore = createMSTeamsPollStoreState();
       await pollStore.createPoll({

@@ -277,6 +277,109 @@ function expectFeishuResult(result: unknown, messageId: string) {
   expect(typedResult?.messageId).toBe(messageId);
 }
 
+describe("feishuOutbound platform dispatch", () => {
+  type GuardedSend = (params: {
+    onPlatformSendDispatch?: () => Promise<void>;
+  }) => Promise<{ messageId: string }>;
+
+  const nativeCardText = JSON.stringify({
+    schema: "2.0",
+    body: { elements: [{ tag: "markdown", content: "hello" }] },
+  });
+
+  beforeEach(() => {
+    resetOutboundMocks();
+  });
+
+  it.each([
+    {
+      name: "text",
+      setup: (guardedSend: GuardedSend) =>
+        sendMessageFeishuMock.mockImplementationOnce(guardedSend),
+      send: async (onPlatformSendDispatch: () => Promise<void>) =>
+        await sendText({
+          cfg: emptyConfig,
+          to: "chat_1",
+          text: "hello",
+          onPlatformSendDispatch,
+        }),
+    },
+    {
+      name: "media",
+      setup: (guardedSend: GuardedSend) => {
+        sendMediaFeishuMock.mockImplementationOnce(guardedSend);
+        sendMessageFeishuMock.mockImplementationOnce(guardedSend);
+      },
+      send: async (onPlatformSendDispatch: () => Promise<void>) =>
+        await feishuOutbound.sendMedia?.({
+          cfg: emptyConfig,
+          to: "chat_1",
+          text: "",
+          mediaUrl: "https://example.com/image.png",
+          onPlatformSendDispatch,
+        }),
+    },
+    {
+      name: "payload",
+      setup: (guardedSend: GuardedSend) => sendCardFeishuMock.mockImplementationOnce(guardedSend),
+      send: async (onPlatformSendDispatch: () => Promise<void>) =>
+        await feishuOutbound.sendPayload?.({
+          cfg: emptyConfig,
+          to: "chat_1",
+          text: nativeCardText,
+          payload: { text: nativeCardText },
+          onPlatformSendDispatch,
+        }),
+    },
+  ])("blocks $name provider I/O when platform dispatch is rejected", async ({ setup, send }) => {
+    const rejection = new Error("conversation owner changed");
+    const providerWrite = vi.fn();
+    const guardedSend = async (params: { onPlatformSendDispatch?: () => Promise<void> }) => {
+      await params.onPlatformSendDispatch?.();
+      providerWrite();
+      return { messageId: "blocked" };
+    };
+    setup(guardedSend);
+
+    await expect(
+      send(async () => {
+        throw rejection;
+      }),
+    ).rejects.toBe(rejection);
+    expect(providerWrite).not.toHaveBeenCalled();
+  });
+
+  it("revalidates platform dispatch between media and card fanout sends", async () => {
+    const rejection = new Error("conversation owner changed");
+    const providerWrites: string[] = [];
+    const guardedSend =
+      (name: string) => async (params: { onPlatformSendDispatch?: () => Promise<void> }) => {
+        await params.onPlatformSendDispatch?.();
+        providerWrites.push(name);
+        return { messageId: name };
+      };
+    sendMediaFeishuMock.mockImplementationOnce(guardedSend("media"));
+    sendCardFeishuMock.mockImplementationOnce(guardedSend("card"));
+    const onPlatformSendDispatch = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(rejection);
+
+    await expect(
+      feishuOutbound.sendPayload?.({
+        cfg: emptyConfig,
+        to: "chat_1",
+        text: nativeCardText,
+        payload: { text: nativeCardText, mediaUrl: "https://example.com/image.png" },
+        onPlatformSendDispatch,
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
+    expect(providerWrites).toEqual(["media"]);
+  });
+});
+
 describe("feishuOutbound.sendText local-image auto-convert", () => {
   beforeEach(() => {
     resetOutboundMocks();

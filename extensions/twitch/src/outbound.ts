@@ -145,6 +145,7 @@ export const twitchOutbound: ChannelOutboundAdapter = {
       throw new Error("No channel specified and no default channel in account config");
     }
 
+    await params.onPlatformSendDispatch?.();
     const result = await sendMessageTwitchInternal(
       normalizeTwitchChannel(channel),
       text,

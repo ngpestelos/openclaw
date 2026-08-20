@@ -61,6 +61,12 @@ import {
 
 type SignalSendFn = typeof import("./send.runtime.js").sendMessageSignal;
 type SignalProbe = import("./probe.js").SignalProbe;
+type SignalFormattedTextContext = Parameters<
+  NonNullable<ChannelOutboundAdapter["sendFormattedText"]>
+>[0];
+type SignalFormattedMediaContext = Parameters<
+  NonNullable<ChannelOutboundAdapter["sendFormattedMedia"]>
+>[0];
 
 const loadSignalMonitorModule = createLazyRuntimeModule(() => import("./monitor.js"));
 
@@ -114,6 +120,7 @@ async function sendSignalOutbound(params: {
   accountId?: string | null;
   deps?: { [channelId: string]: unknown };
   replyToId?: string | null;
+  onPlatformSendDispatch?: () => Promise<void>;
 }) {
   const accountId = params.accountId ?? undefined;
   const { send, maxBytes } = await resolveSignalSendContext({ ...params, accountId });
@@ -132,6 +139,7 @@ async function sendSignalOutbound(params: {
     ...(params.mediaReadFile ? { mediaReadFile: params.mediaReadFile } : {}),
     maxBytes,
     accountId,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
     ...replyOptions,
   });
 }
@@ -261,24 +269,7 @@ function resolveSignalOutboundSessionRoute(params: {
   };
 }
 
-async function sendFormattedSignalText(ctx: {
-  cfg: Parameters<typeof resolveSignalAccount>[0]["cfg"];
-  to: string;
-  text: string;
-  accountId?: string | null;
-  deps?: { [channelId: string]: unknown };
-  replyToId?: string | null;
-  replyToIdSource?: Parameters<
-    NonNullable<ChannelOutboundAdapter["sendFormattedText"]>
-  >[0]["replyToIdSource"];
-  replyToMode?: Parameters<
-    NonNullable<ChannelOutboundAdapter["sendFormattedText"]>
-  >[0]["replyToMode"];
-  abortSignal?: AbortSignal;
-  onDeliveryResult?: Parameters<
-    NonNullable<ChannelOutboundAdapter["sendFormattedText"]>
-  >[0]["onDeliveryResult"];
-}) {
+async function sendFormattedSignalText(ctx: SignalFormattedTextContext) {
   const { send, maxBytes } = await resolveSignalSendContext({
     cfg: ctx.cfg,
     accountId: ctx.accountId ?? undefined,
@@ -332,6 +323,7 @@ async function sendFormattedSignalText(ctx: {
       accountId: ctx.accountId ?? undefined,
       textMode: "plain",
       textStyles: chunk.styles,
+      onPlatformSendDispatch: ctx.onPlatformSendDispatch,
       ...replyOptions,
     });
     const deliveryResult = attachChannelToResult(
@@ -344,19 +336,7 @@ async function sendFormattedSignalText(ctx: {
   return results;
 }
 
-async function sendFormattedSignalMedia(ctx: {
-  cfg: Parameters<typeof resolveSignalAccount>[0]["cfg"];
-  to: string;
-  text: string;
-  mediaUrl: string;
-  mediaAccess?: Parameters<SignalSendFn>[2]["mediaAccess"];
-  mediaLocalRoots?: readonly string[];
-  mediaReadFile?: (filePath: string) => Promise<Buffer>;
-  accountId?: string | null;
-  deps?: { [channelId: string]: unknown };
-  replyToId?: string | null;
-  abortSignal?: AbortSignal;
-}) {
+async function sendFormattedSignalMedia(ctx: SignalFormattedMediaContext) {
   ctx.abortSignal?.throwIfAborted();
   const { send, maxBytes } = await resolveSignalSendContext({
     cfg: ctx.cfg,
@@ -395,6 +375,7 @@ async function sendFormattedSignalMedia(ctx: {
     accountId: ctx.accountId ?? undefined,
     textMode: "plain",
     textStyles: formatted.styles,
+    onPlatformSendDispatch: ctx.onPlatformSendDispatch,
     ...replyOptions,
   });
   return attachChannelToResult("signal", attachSignalVisibleText(result, formatted.text));

@@ -552,6 +552,7 @@ async function sendImageFeishu(params: {
   replyInThread?: boolean;
   allowTopLevelReplyFallback?: boolean;
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<SendMediaResult> {
   const {
     cfg,
@@ -561,6 +562,7 @@ async function sendImageFeishu(params: {
     replyInThread,
     allowTopLevelReplyFallback,
     accountId,
+    onPlatformSendDispatch,
   } = params;
   const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({
     cfg,
@@ -584,19 +586,22 @@ async function sendImageFeishu(params: {
       },
       directErrorPrefix: "Feishu image send failed",
       replyErrorPrefix: "Feishu image reply failed",
+      onPlatformSendDispatch,
     });
   }
 
   const response = await requestFeishuApi(
-    () =>
-      client.im.message.create({
+    async () => {
+      await onPlatformSendDispatch?.();
+      return await client.im.message.create({
         params: { receive_id_type: receiveIdType },
         data: {
           receive_id: receiveId,
           content,
           msg_type: "image",
         },
-      }),
+      });
+    },
     "Feishu image send failed",
     { includeNestedErrorLogId: true },
   );
@@ -617,6 +622,7 @@ async function sendFileFeishu(params: {
   replyInThread?: boolean;
   allowTopLevelReplyFallback?: boolean;
   accountId?: string;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<SendMediaResult> {
   const {
     cfg,
@@ -626,6 +632,7 @@ async function sendFileFeishu(params: {
     replyInThread,
     allowTopLevelReplyFallback,
     accountId,
+    onPlatformSendDispatch,
   } = params;
   const msgType = params.msgType ?? "file";
   const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({
@@ -650,19 +657,22 @@ async function sendFileFeishu(params: {
       },
       directErrorPrefix: "Feishu file send failed",
       replyErrorPrefix: "Feishu file reply failed",
+      onPlatformSendDispatch,
     });
   }
 
   const response = await requestFeishuApi(
-    () =>
-      client.im.message.create({
+    async () => {
+      await onPlatformSendDispatch?.();
+      return await client.im.message.create({
         params: { receive_id_type: receiveIdType },
         data: {
           receive_id: receiveId,
           content,
           msg_type: msgType,
         },
-      }),
+      });
+    },
     "Feishu file send failed",
     { includeNestedErrorLogId: true },
   );
@@ -969,6 +979,7 @@ export async function sendMediaFeishu(params: {
   mediaReadFile?: OutboundMediaAccess["readFile"];
   /** When true, transcode compatible audio to Feishu native Ogg/Opus voice bubbles. */
   audioAsVoice?: boolean;
+  onPlatformSendDispatch?: () => Promise<void>;
 }): Promise<SendMediaResult> {
   const {
     cfg,
@@ -982,6 +993,7 @@ export async function sendMediaFeishu(params: {
     accountId,
     mediaLocalRoots,
     audioAsVoice,
+    onPlatformSendDispatch,
   } = params;
   const account = await runBeforeFeishuMessageDispatch(() => {
     const resolved = resolveFeishuRuntimeAccount({ cfg, accountId });
@@ -1075,6 +1087,7 @@ export async function sendMediaFeishu(params: {
       replyInThread,
       allowTopLevelReplyFallback,
       accountId,
+      onPlatformSendDispatch,
     });
     return {
       ...result,
@@ -1106,6 +1119,7 @@ export async function sendMediaFeishu(params: {
     replyInThread,
     allowTopLevelReplyFallback,
     accountId,
+    onPlatformSendDispatch,
   });
   return {
     ...result,

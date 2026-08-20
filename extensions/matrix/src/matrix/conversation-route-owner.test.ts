@@ -150,6 +150,6 @@ describe("resolveMatrixConversationRouteOwner", () => {
         accountId: "default",
         conversation,
       }),
-    ).toBeNull();
+    ).toEqual({ kind: "unavailable" });
   });
 });

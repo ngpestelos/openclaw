@@ -141,6 +141,30 @@ describe("web outbound", () => {
     expect(sendMessage).toHaveBeenCalledWith("+1555", "hi", undefined, undefined);
   });
 
+  it("prepares media before fencing the recipient-visible send", async () => {
+    loadWebMediaMock.mockResolvedValueOnce({
+      buffer: Buffer.from("image"),
+      contentType: "image/png",
+      kind: "image",
+    });
+    const onPlatformSendDispatch = vi.fn(async () => {
+      expect(loadWebMediaMock).toHaveBeenCalledOnce();
+      throw new Error("ownership changed");
+    });
+
+    await expect(
+      sendMessageWhatsApp("+1555", "caption", {
+        verbose: false,
+        cfg: WHATSAPP_TEST_CFG,
+        mediaUrl: "/tmp/pic.png",
+        onPlatformSendDispatch,
+      }),
+    ).rejects.toThrow("ownership changed");
+
+    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it.each([
     { kind: "text", mediaUrl: undefined, contentType: undefined },
     { kind: "image", mediaUrl: "/tmp/pic.png", contentType: "image/png" },

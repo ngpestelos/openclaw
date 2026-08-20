@@ -53,7 +53,7 @@ export function inspectDiscordConversationRouteOwner(params: {
       kind: "subagent",
     }).enabled
   ) {
-    return null;
+    return { kind: "unavailable" as const };
   }
   if (runtimeRoute.pluginId) {
     return {

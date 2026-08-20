@@ -231,6 +231,7 @@ export const googlechatOutboundAdapter = {
       accountId,
       replyToId,
       threadId,
+      onPlatformSendDispatch,
     }: {
       cfg: OpenClawConfig;
       to: string;
@@ -238,6 +239,7 @@ export const googlechatOutboundAdapter = {
       accountId?: string | null;
       replyToId?: string | null;
       threadId?: string | number | null;
+      onPlatformSendDispatch?: () => Promise<void>;
     }) => {
       const account = resolveGoogleChatAccount({
         cfg,
@@ -247,6 +249,7 @@ export const googlechatOutboundAdapter = {
       const thread =
         typeof threadId === "number" ? String(threadId) : (threadId ?? replyToId ?? undefined);
       const { sendGoogleChatMessage } = await loadGoogleChatChannelRuntime();
+      await onPlatformSendDispatch?.();
       const result = await sendGoogleChatMessage({
         account,
         space,

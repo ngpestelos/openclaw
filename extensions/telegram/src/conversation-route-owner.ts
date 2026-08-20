@@ -76,7 +76,7 @@ export function inspectTelegramConversationRouteOwner(params: {
       kind: "subagent",
     }).enabled
   ) {
-    return null;
+    return { kind: "unavailable" as const };
   }
   if (result.bindingMode.kind !== "plugin-owned-runtime") {
     return { kind: "agent" as const, agentId: result.route.agentId };

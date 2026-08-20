@@ -228,7 +228,7 @@ describe("inspectTelegramConversationRouteOwner", () => {
     });
     expect(
       inspectTelegramConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
-    ).toBeNull();
+    ).toEqual({ kind: "unavailable" });
     expect(
       inspectTelegramConversationRouteOwner({
         cfg: { channels: { telegram: { threadBindings: { enabled: false } } } },

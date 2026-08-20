@@ -152,6 +152,7 @@ export async function sendMessageWhatsApp(
     preserveLeadingWhitespace?: boolean;
     /** Report each accepted internal platform send before the next fallible send. */
     onDeliveryResult?: (result: { messageId: string; toJid: string }) => Promise<void> | void;
+    onPlatformSendDispatch?: () => Promise<void>;
   },
 ): Promise<{ messageId: string; toJid: string }> {
   return await withWhatsAppLogicalDeliveryActivity(() =>
@@ -278,6 +279,7 @@ async function sendMessageWhatsAppInActivityScope(
             accountId,
           }
         : undefined;
+    await options.onPlatformSendDispatch?.();
     const result = requireWhatsAppAcceptedSendResult(
       sendOptions
         ? await active.sendMessage(to, text, mediaBuffer, mediaType, sendOptions)
@@ -294,6 +296,7 @@ async function sendMessageWhatsAppInActivityScope(
       // cannot replay already-delivered media or text chunks.
       await options.onDeliveryResult?.({ messageId, toJid: sentRemoteJid });
       for (const trailingText of trailingTextChunks) {
+        await options.onPlatformSendDispatch?.();
         const trailingResult = requireWhatsAppAcceptedSendResult(
           sendOptions
             ? await active.sendMessage(to, trailingText, undefined, undefined, sendOptions)
@@ -392,7 +395,12 @@ export async function sendReactionWhatsApp(
 export async function sendPollWhatsApp(
   to: string,
   poll: PollInput,
-  options: { verbose: boolean; accountId?: string; cfg: OpenClawConfig },
+  options: {
+    verbose: boolean;
+    accountId?: string;
+    cfg: OpenClawConfig;
+    onPlatformSendDispatch?: () => Promise<void>;
+  },
 ): Promise<{ messageId: string; toJid: string }> {
   const correlationId = generateSecureUuid();
   const startedAt = Date.now();
@@ -423,6 +431,7 @@ export async function sendPollWhatsApp(
     if (!isWhatsAppNewsletterJid(jid)) {
       await active.assertSendReady?.(to);
     }
+    await options.onPlatformSendDispatch?.();
     const result = requireWhatsAppAcceptedSendResult(await active.sendPoll(to, normalized));
     const messageId = result.messageId;
     const durationMs = Date.now() - startedAt;

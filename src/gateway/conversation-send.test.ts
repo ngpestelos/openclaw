@@ -4,6 +4,8 @@ import {
   type ConversationDeliveryRecord,
 } from "../config/sessions/conversation-delivery-store.js";
 import type { MessageActionResult } from "../infra/outbound/message-action-contracts.js";
+import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
+import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import {
   ConversationInputError,
   ConversationOperationConflictError,
@@ -136,6 +138,49 @@ function createDeps() {
 }
 
 describe("runGatewayConversationSend", () => {
+  it("retries after temporary route-owner unavailability", async () => {
+    const deps = createDeps();
+    let unavailable = true;
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "reef",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "reef" }),
+            messaging: {
+              resolveConversationRouteOwner: () =>
+                unavailable
+                  ? { kind: "unavailable" as const }
+                  : { kind: "agent" as const, agentId: "main" },
+            },
+          },
+        },
+      ]),
+    );
+    try {
+      const params = {
+        config: {},
+        agentId: "main",
+        senderIsOwner: true,
+        operationId: "send-owner-reload",
+        conversationRef: conversation.conversationRef,
+        message: "wait for the owner store",
+      };
+      await expect(runGatewayConversationSend(params, deps)).rejects.toThrow(
+        "Conversation ownership is temporarily unavailable",
+      );
+      expect(deps.runMessageAction).not.toHaveBeenCalled();
+
+      unavailable = false;
+      await expect(runGatewayConversationSend(params, deps)).resolves.toMatchObject({
+        status: "sent",
+      });
+    } finally {
+      resetPluginRuntimeStateForTest();
+    }
+  });
+
   it("owns durable delivery in the Gateway and binds the source session", async () => {
     const deps = createDeps();
     const result = await runGatewayConversationSend(

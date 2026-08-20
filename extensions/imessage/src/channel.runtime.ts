@@ -33,6 +33,7 @@ export async function sendIMessageOutbound(params: {
   replyToId?: string;
   conversationReadOrigin?: "delegated" | "direct-operator";
   onDeliveryResult?: NonNullable<Parameters<IMessageSendFn>[2]["onDeliveryResult"]>;
+  onPlatformSendDispatch?: () => Promise<void>;
 }) {
   const send =
     resolveOutboundSendDep<IMessageSendFn>(params.deps, "imessage", {
@@ -57,6 +58,9 @@ export async function sendIMessageOutbound(params: {
     replyToId: params.replyToId ?? undefined,
     conversationReadOrigin: params.conversationReadOrigin,
     ...(params.onDeliveryResult ? { onDeliveryResult: params.onDeliveryResult } : {}),
+    ...(params.onPlatformSendDispatch
+      ? { onPlatformSendDispatch: params.onPlatformSendDispatch }
+      : {}),
   });
   const meta = {
     ...(result as typeof result & { meta?: Record<string, unknown> }).meta,

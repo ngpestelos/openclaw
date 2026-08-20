@@ -21,17 +21,19 @@ export const ircMessageAdapter = defineChannelMessageAdapter({
     },
   },
   send: {
-    text: async ({ cfg, to, text, accountId, replyToId }) =>
+    text: async ({ cfg, to, text, accountId, replyToId, onPlatformSendDispatch }) =>
       await sendIrcMessage(to, text, {
         cfg: cfg as CoreConfig,
         accountId: accountId ?? undefined,
         replyTo: replyToId ?? undefined,
+        onPlatformSendDispatch,
       }),
-    media: async ({ cfg, to, text, mediaUrl, accountId, replyToId }) =>
+    media: async ({ cfg, to, text, mediaUrl, accountId, replyToId, onPlatformSendDispatch }) =>
       await sendIrcMessage(to, mediaUrl ? `${text}\n\nAttachment: ${mediaUrl}` : text, {
         cfg: cfg as CoreConfig,
         accountId: accountId ?? undefined,
         replyTo: replyToId ?? undefined,
+        onPlatformSendDispatch,
       }),
   },
 });

@@ -33,7 +33,10 @@ type DiscordDeliveryFailure = "rejected" | "pre-connect" | "ambiguous" | "unknow
 export type DiscordRetryRunner = <T>(
   fn: () => Promise<T>,
   label?: string,
-  options?: { safety: DiscordRetrySafety },
+  options?: {
+    safety: DiscordRetrySafety;
+    onPlatformSendDispatch?: () => Promise<void>;
+  },
 ) => Promise<T>;
 
 function readDiscordErrorStatus(err: unknown): number | undefined {
@@ -162,7 +165,14 @@ export function createDiscordRetryRunner(params: {
       ? retryConfig.attempts + DISCORD_GATEWAY_RECONNECT_EXTRA_ATTEMPTS
       : retryConfig.attempts;
 
-  return <T>(fn: () => Promise<T>, label?: string, options?: { safety: DiscordRetrySafety }) => {
+  return <T>(
+    fn: () => Promise<T>,
+    label?: string,
+    options?: {
+      safety: DiscordRetrySafety;
+      onPlatformSendDispatch?: () => Promise<void>;
+    },
+  ) => {
     const isRetryable = resolveDiscordRetryPredicate(options?.safety ?? "idempotent");
     let observedGatewayDisconnect = false;
     const runRequest = async () => {
@@ -173,6 +183,7 @@ export function createDiscordRetryRunner(params: {
       }
       observedGatewayDisconnect ||= params.isGatewayDisconnected?.() === true;
       try {
+        await options?.onPlatformSendDispatch?.();
         return await fn();
       } catch (err) {
         observedGatewayDisconnect ||= params.isGatewayDisconnected?.() === true;

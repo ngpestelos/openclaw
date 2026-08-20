@@ -73,26 +73,24 @@ async function sendLocationTelegramWithContext(
     label,
     requestParams: commonParams,
     request: async (effectiveParams, retryLabel) => {
-      await opts.onPlatformSendDispatch?.();
-      return await prepared.request(
-        () =>
-          hasName
-            ? api.sendVenue(
-                prepared.chatId,
-                location.latitude,
-                location.longitude,
-                location.name ?? "",
-                location.address ?? "",
-                effectiveParams as TelegramSendVenueParams,
-              )
-            : api.sendLocation(prepared.chatId, location.latitude, location.longitude, {
-                ...effectiveParams,
-                ...(location.accuracy !== undefined
-                  ? { horizontal_accuracy: location.accuracy }
-                  : {}),
-              } as TelegramSendLocationParams),
-        retryLabel,
-      );
+      return await prepared.request(async () => {
+        await opts.onPlatformSendDispatch?.();
+        return hasName
+          ? await api.sendVenue(
+              prepared.chatId,
+              location.latitude,
+              location.longitude,
+              location.name ?? "",
+              location.address ?? "",
+              effectiveParams as TelegramSendVenueParams,
+            )
+          : await api.sendLocation(prepared.chatId, location.latitude, location.longitude, {
+              ...effectiveParams,
+              ...(location.accuracy !== undefined
+                ? { horizontal_accuracy: location.accuracy }
+                : {}),
+            } as TelegramSendLocationParams);
+      }, retryLabel);
     },
   });
   const result = delivery.result;

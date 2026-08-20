@@ -139,7 +139,7 @@ describe("inspectDiscordConversationRouteOwner", () => {
     });
     expect(
       inspectDiscordConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
-    ).toBeNull();
+    ).toEqual({ kind: "unavailable" });
     expect(
       inspectDiscordConversationRouteOwner({
         cfg: { channels: { discord: { threadBindings: { enabled: false } } } },

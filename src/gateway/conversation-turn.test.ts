@@ -6,10 +6,12 @@ import {
 import type { ConversationRecord } from "../config/sessions/conversation-registry.js";
 import { PlatformMessageNotDispatchedError } from "../infra/outbound/deliver-types.js";
 import type { MessageActionResult } from "../infra/outbound/message-action-contracts.js";
+import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
 import {
   claimPendingConversationTurnReply,
   registerPendingConversationTurn,
 } from "../sessions/conversation-turns.js";
+import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { ConversationInputError } from "./conversation-errors.js";
 import { runGatewayConversationTurn } from "./conversation-turn.js";
 
@@ -164,6 +166,50 @@ async function dispatchPlatformSend(input: Record<string, unknown>): Promise<voi
 }
 
 describe("runGatewayConversationTurn", () => {
+  it("retries after temporary route-owner unavailability", async () => {
+    const deps = createDeps();
+    let unavailable = true;
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "reef",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "reef" }),
+            messaging: {
+              resolveConversationRouteOwner: () =>
+                unavailable
+                  ? { kind: "unavailable" as const }
+                  : { kind: "agent" as const, agentId: "main" },
+            },
+          },
+        },
+      ]),
+    );
+    try {
+      const params = {
+        config: {},
+        agentId: "main",
+        senderIsOwner: true,
+        turnId: "turn-owner-reload",
+        conversationRef: conversation.conversationRef,
+        message: "wait for the owner store",
+        timeoutMs: 1,
+      };
+      await expect(runGatewayConversationTurn(params, deps)).rejects.toThrow(
+        "Conversation ownership is temporarily unavailable",
+      );
+      expect(deps.runMessageAction).not.toHaveBeenCalled();
+
+      unavailable = false;
+      await expect(runGatewayConversationTurn(params, deps)).resolves.toMatchObject({
+        status: "timeout",
+      });
+    } finally {
+      resetPluginRuntimeStateForTest();
+    }
+  });
+
   it("creates a context binding only when a discovered address starts a turn", async () => {
     const deps = createDeps();
     const {

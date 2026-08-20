@@ -502,15 +502,18 @@ describe("sendMessageSignal receipts", () => {
     signalRpcRequestMock
       .mockRejectedValueOnce(new Error(message))
       .mockResolvedValueOnce({ timestamp: 1234567893 });
+    const onPlatformSendDispatch = vi.fn(async () => {});
 
     const result = await sendMessageSignal("+15551234567", "hello", {
       cfg: SIGNAL_TEST_CFG,
       replyToId: "1700000000001",
       replyToAuthor: "+15550002222",
       replyToBody: "original",
+      onPlatformSendDispatch,
     });
 
     expect(signalRpcRequestMock).toHaveBeenCalledTimes(2);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
     expect(signalRpcRequestMock.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         quoteTimestamp: 1700000000001,

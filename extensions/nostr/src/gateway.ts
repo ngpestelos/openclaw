@@ -359,7 +359,7 @@ export const nostrOutboundAdapter: NostrOutboundAdapter = {
       messageSendingHooks: true,
     },
   },
-  sendText: async ({ cfg, to, text, accountId }) => {
+  sendText: async ({ cfg, to, text, accountId, onPlatformSendDispatch }) => {
     const core = getNostrRuntime();
     const aid = accountId ?? resolveDefaultNostrAccountId(cfg);
     const bus = activeBuses.get(aid);
@@ -376,6 +376,7 @@ export const nostrOutboundAdapter: NostrOutboundAdapter = {
       throw new Error("Nostr send requires non-empty text after markdown stripping.");
     }
     const normalizedTo = normalizePubkey(to);
+    await onPlatformSendDispatch?.();
     const eventId = await bus.sendDm(normalizedTo, message);
     return attachChannelToResult("nostr", {
       to: normalizedTo,

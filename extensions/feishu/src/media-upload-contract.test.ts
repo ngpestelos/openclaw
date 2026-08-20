@@ -138,6 +138,36 @@ describe("Feishu upload contracts", () => {
   });
 
   it.each([
+    { name: "image", buffer: pngImage, fileName: "photo.png", upload: mocks.imageCreate },
+    {
+      name: "file",
+      buffer: Buffer.from("attachment"),
+      fileName: "notes.pdf",
+      upload: mocks.fileCreate,
+    },
+  ])(
+    "blocks the visible $name send after staging when platform dispatch is rejected",
+    async (media) => {
+      const rejection = new Error("conversation owner changed");
+
+      await expect(
+        sendMediaFeishu({
+          cfg: emptyConfig,
+          to: "user:ou_target",
+          mediaBuffer: media.buffer,
+          fileName: media.fileName,
+          onPlatformSendDispatch: async () => {
+            throw rejection;
+          },
+        }),
+      ).rejects.toThrow("conversation owner changed");
+
+      expect(media.upload).toHaveBeenCalledOnce();
+      expect(mocks.messageCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     { fileName: "photo.heic", contentType: "image/heic", buffer: heicImage },
     { fileName: "download", contentType: "image/heic", buffer: heicImage },
     { fileName: "photo.jpg", contentType: "image/heic", buffer: heicImage },

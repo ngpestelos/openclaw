@@ -75,6 +75,7 @@ type NextcloudTalkSendOpts = {
   replyTo?: string;
   verbose?: boolean;
   timeoutMs?: number;
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 function resolveCredentials(
@@ -198,6 +199,7 @@ export async function sendMessageNextcloudTalk(
 
   const url = `${baseUrl}/ocs/v2.php/apps/spreed/api/v1/bot/${roomToken}/message`;
 
+  await opts.onPlatformSendDispatch?.();
   const { response, release } = await fetchWithSsrFGuard({
     url,
     init: {

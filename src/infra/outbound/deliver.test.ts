@@ -2295,6 +2295,53 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
+  it("retains queued custody while the route owner is temporarily unavailable", async () => {
+    const rejection = new PlatformMessageNotDispatchedError(
+      "conversation ownership is temporarily unavailable",
+      { cause: new Error("binding adapter is reloading"), retryable: true },
+    );
+    const providerSend = vi.fn();
+    setMatrixMessageAdapter({
+      id: "matrix",
+      durableFinal: { capabilities: { text: true } },
+      send: {
+        text: async (ctx: ChannelMessageSendTextContext) => {
+          await ctx.onPlatformSendDispatch?.();
+          providerSend();
+          return {
+            messageId: "message-after-reload",
+            receipt: createMessageReceiptFromOutboundResults({
+              results: [{ channel: "matrix", messageId: "message-after-reload" }],
+              kind: "text",
+            }),
+          };
+        },
+      },
+    });
+
+    await expect(
+      deliverMatrix({
+        queuePolicy: "required",
+        deliveryCompletion: {
+          kind: "conversation",
+          agentId: "main",
+          operationId: "operation-owner-reload",
+        },
+        onPlatformSendDispatch: async () => {
+          throw rejection;
+        },
+      }),
+    ).rejects.toThrow(rejection.message);
+
+    expect(providerSend).not.toHaveBeenCalled();
+    expect(queueMocks.failDeliveryBeforePlatformSend).toHaveBeenCalledWith(
+      "mock-queue-id",
+      expect.stringContaining(rejection.message),
+    );
+    expect(completionMocks.rejectDurableDelivery).not.toHaveBeenCalled();
+    expect(queueMocks.ackDelivery).not.toHaveBeenCalled();
+  });
+
   it("normalizes an empty permanent rejection reason before durable retirement", async () => {
     const sendMatrix = vi.fn().mockRejectedValueOnce(
       new PlatformMessageNotDispatchedError("   ", {

@@ -40,7 +40,14 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
   sanitizeText: ({ text }) => sanitizeAssistantVisibleText(text),
   presentationCapabilities: LINE_PRESENTATION_CAPABILITIES,
   renderPresentation: ({ payload, presentation }) => renderLinePresentation(payload, presentation),
-  sendPayload: async ({ to, payload, accountId, cfg, onDeliveryResult }) => {
+  sendPayload: async ({
+    to,
+    payload,
+    accountId,
+    cfg,
+    onDeliveryResult,
+    onPlatformSendDispatch,
+  }) => {
     const runtime = getLineRuntime();
     const outboundRuntime = await loadLineOutboundRuntime();
     const rawLineData = (payload.channelData?.line as LineChannelData | undefined) ?? {};
@@ -64,10 +71,9 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
       outboundRuntime.buildTemplateMessageFromPayload;
 
     let lastResult: LineSendResult | null = null;
-    const recordResult = async (
-      resultPromise: Promise<LineSendResult>,
-    ): Promise<LineSendResult> => {
-      const result = await resultPromise;
+    const recordResult = async (send: () => Promise<LineSendResult>): Promise<LineSendResult> => {
+      await onPlatformSendDispatch?.();
+      const result = await send();
       lastResult = result;
       try {
         await onDeliveryResult?.(createEmptyChannelResult("line", { ...result }));
@@ -102,7 +108,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
       }
       for (let i = 0; i < messages.length; i += 5) {
         const batch = messages.slice(i, i + 5) as unknown as Parameters<typeof sendBatch>[1];
-        await recordResult(
+        await recordResult(() =>
           sendBatch(to, batch, {
             verbose: false,
             cfg,
@@ -117,7 +123,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
         await sendMessageBatch([{ type: "text", text, quickReply }]);
         return;
       }
-      await recordResult(
+      await recordResult(() =>
         sendQuickReplies(to, text, quickReplies, {
           verbose: false,
           cfg,
@@ -165,7 +171,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
           continue;
         }
         if (!useLineSpecificMedia) {
-          await recordResult(
+          await recordResult(() =>
             (lineRuntime?.sendMessageLine ?? outboundRuntime.sendMessageLine)(to, "", {
               verbose: false,
               mediaUrl: trimmed,
@@ -176,7 +182,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
           continue;
         }
         const resolved = await resolveLineOutboundMedia(trimmed, mediaOptions);
-        await recordResult(
+        await recordResult(() =>
           (lineRuntime?.sendMessageLine ?? outboundRuntime.sendMessageLine)(to, "", {
             verbose: false,
             mediaUrl: resolved.mediaUrl,
@@ -193,9 +199,10 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
 
     if (!shouldSendQuickRepliesInline) {
       if (lineData.flexMessage) {
-        const flexContents = lineData.flexMessage.contents as Parameters<typeof sendFlex>[2];
-        await recordResult(
-          sendFlex(to, lineData.flexMessage.altText, flexContents, {
+        const flexMessage = lineData.flexMessage;
+        const flexContents = flexMessage.contents as Parameters<typeof sendFlex>[2];
+        await recordResult(() =>
+          sendFlex(to, flexMessage.altText, flexContents, {
             verbose: false,
             cfg,
             accountId: accountId ?? undefined,
@@ -206,7 +213,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
       if (lineData.templateMessage) {
         const template = buildTemplate(lineData.templateMessage);
         if (template) {
-          await recordResult(
+          await recordResult(() =>
             sendTemplate(to, template, {
               verbose: false,
               cfg,
@@ -217,7 +224,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
       }
 
       if (location) {
-        await recordResult(
+        await recordResult(() =>
           sendLocation(to, location, {
             verbose: false,
             cfg,
@@ -228,7 +235,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
 
       if (!orderedMessages) {
         for (const flexMsg of processed.flexMessages) {
-          await recordResult(
+          await recordResult(() =>
             sendFlex(to, flexMsg.altText, flexMsg.contents, {
               verbose: false,
               cfg,
@@ -251,7 +258,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
           if (isLast && quickReply) {
             await sendMessageBatch([{ ...message, quickReply }]);
           } else {
-            await recordResult(
+            await recordResult(() =>
               sendFlex(to, message.altText, message.contents, {
                 verbose: false,
                 cfg,
@@ -262,7 +269,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
         } else if (isLast && hasQuickReplies) {
           await sendTextWithQuickReply(message.text);
         } else {
-          await recordResult(
+          await recordResult(() =>
             sendText(to, message.text, {
               verbose: false,
               cfg,
@@ -277,7 +284,7 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
         if (isLast && hasQuickReplies) {
           await sendTextWithQuickReply(chunk);
         } else {
-          await recordResult(
+          await recordResult(() =>
             sendText(to, chunk, {
               verbose: false,
               cfg,
@@ -350,15 +357,16 @@ export const lineOutboundAdapter: NonNullable<ChannelPlugin<ResolvedLineAccount>
         ...ctx,
         payload: { text: ctx.text },
       }),
-    sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) =>
-      await (
-        await loadLineOutboundRuntime()
-      ).sendMessageLine(to, text, {
+    sendMedia: async ({ cfg, to, text, mediaUrl, accountId, onPlatformSendDispatch }) => {
+      const runtime = await loadLineOutboundRuntime();
+      await onPlatformSendDispatch?.();
+      return await runtime.sendMessageLine(to, text, {
         verbose: false,
         mediaUrl,
         cfg,
         accountId: accountId ?? undefined,
-      }),
+      });
+    },
   }),
 };
 
@@ -395,20 +403,29 @@ export const lineMessageAdapter = defineChannelMessageAdapter({
     },
   },
   send: {
-    text: async ({ cfg, to, text, accountId, onDeliveryResult }) => {
+    text: async ({ cfg, to, text, accountId, onDeliveryResult, onPlatformSendDispatch }) => {
       const result = await lineOutboundAdapter.sendPayload!({
         cfg,
         to,
         text,
         accountId,
         payload: { text },
+        onPlatformSendDispatch,
         onDeliveryResult: async (deliveryResult) => {
           await onDeliveryResult?.(toLineMessageSendResult(deliveryResult, "text"));
         },
       });
       return toLineMessageSendResult(result, "text");
     },
-    media: async ({ cfg, to, text, mediaUrl, accountId, onDeliveryResult }) => {
+    media: async ({
+      cfg,
+      to,
+      text,
+      mediaUrl,
+      accountId,
+      onDeliveryResult,
+      onPlatformSendDispatch,
+    }) => {
       const result = await lineOutboundAdapter.sendPayload!({
         cfg,
         to,
@@ -416,6 +433,7 @@ export const lineMessageAdapter = defineChannelMessageAdapter({
         mediaUrl,
         accountId,
         payload: { text, mediaUrl },
+        onPlatformSendDispatch,
         onDeliveryResult: async (deliveryResult) => {
           await onDeliveryResult?.(toLineMessageSendResult(deliveryResult, "media"));
         },

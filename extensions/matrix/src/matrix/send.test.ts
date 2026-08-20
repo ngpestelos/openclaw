@@ -564,6 +564,50 @@ describe("sendMessageMatrix durable delivery", () => {
     expect(dispatch).toHaveBeenCalledOnce();
     expect(sendMessage.mock.calls[0]?.[2]).toMatch(/^oc_/);
   });
+
+  it("refreshes ownership before every event in a durable chunk fanout", async () => {
+    const { client, sendMessage } = makeClient();
+    const dispatch = vi.fn(async () => undefined);
+    resolveTextChunkLimitMock.mockReturnValue(20);
+    chunkMarkdownTextWithModeMock.mockReturnValue(["first chunk", "second chunk"]);
+    sendMessage.mockImplementation(
+      async (
+        roomId: string,
+        _content: unknown,
+        transactionId?: string,
+        beforeWireDispatch?: (dispatch: {
+          roomId: string;
+          eventType: "m.room.message";
+          transactionId: string;
+          requestPath: string;
+        }) => Promise<void>,
+      ) => {
+        if (!transactionId || !beforeWireDispatch) {
+          throw new Error("expected durable Matrix dispatch context");
+        }
+        await beforeWireDispatch({
+          roomId,
+          eventType: "m.room.message",
+          transactionId,
+          requestPath: `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${transactionId}`,
+        });
+        return `$event-${sendMessage.mock.calls.length}`;
+      },
+    );
+
+    await sendMessageMatrix("room:!room:example", "first second third fourth", {
+      client,
+      cfg: {} as never,
+      accountId: "default",
+      deliveryQueueId: "queue-fanout",
+      deliveryPartIndex: 0,
+      deliveryPartCount: 1,
+      onPlatformSendDispatch: dispatch,
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("sendMessageMatrix media", () => {

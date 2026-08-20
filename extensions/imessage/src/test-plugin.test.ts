@@ -310,7 +310,16 @@ describe("imessagePlugin contracts", () => {
     const outbound = requireOutbound();
     const sendText = requireOutboundSendText(outbound);
     const sendMedia = requireOutboundSendMedia(outbound);
-    const sendIMessage = async () => ({ messageId: "imsg-1" });
+    const providerWrite = vi.fn();
+    const sendIMessage = async (
+      _to: string,
+      _text: string,
+      options?: { onPlatformSendDispatch?: () => Promise<void> },
+    ) => {
+      await options?.onPlatformSendDispatch?.();
+      providerWrite();
+      return { messageId: "imsg-1" };
+    };
 
     await verifyDurableFinalCapabilityProofs({
       adapterName: "imessageOutbound",
@@ -349,19 +358,40 @@ describe("imessagePlugin contracts", () => {
             }),
           ).resolves.toEqual({ channel: "imessage", messageId: "imsg-1" });
         },
-        messageSendingHooks: () => {
-          expect(sendText).toBeTypeOf("function");
+        messageSendingHooks: async () => {
+          providerWrite.mockClear();
+          const rejection = new Error("conversation owner changed");
+          await expect(
+            sendText({
+              cfg: {} as never,
+              to: "+15551234567",
+              text: "hello",
+              deps: { imessage: sendIMessage },
+              onPlatformSendDispatch: async () => {
+                throw rejection;
+              },
+            }),
+          ).rejects.toBe(rejection);
+          expect(providerWrite).not.toHaveBeenCalled();
         },
       },
     });
   });
 
   it("backs declared message adapter capabilities with delivery proofs", async () => {
+    const providerWrite = vi.fn();
     const sendIMessage = async (
       _to: string,
       _text: string,
-      opts?: { mediaUrl?: string; replyToId?: string; audioAsVoice?: boolean },
+      opts?: {
+        mediaUrl?: string;
+        replyToId?: string;
+        audioAsVoice?: boolean;
+        onPlatformSendDispatch?: () => Promise<void>;
+      },
     ) => {
+      await opts?.onPlatformSendDispatch?.();
+      providerWrite();
       const messageId = opts?.mediaUrl ? "imsg-media-1" : "imsg-text-1";
       return {
         messageId,
@@ -419,8 +449,23 @@ describe("imessagePlugin contracts", () => {
           });
           expect(result.receipt.replyToId).toBe("reply-1");
         },
-        messageSendingHooks: () => {
-          expect(sendText).toBeTypeOf("function");
+        messageSendingHooks: async () => {
+          providerWrite.mockClear();
+          const rejection = new Error("conversation owner changed");
+          await expect(
+            sendText({
+              cfg: {} as never,
+              to: "+15551234567",
+              text: "hello",
+              deps: { imessage: sendIMessage },
+              onPlatformSendDispatch: async () => {
+                throw rejection;
+              },
+            } as Parameters<typeof sendText>[0] & {
+              deps: { imessage: typeof sendIMessage };
+            }),
+          ).rejects.toBe(rejection);
+          expect(providerWrite).not.toHaveBeenCalled();
         },
       },
     });

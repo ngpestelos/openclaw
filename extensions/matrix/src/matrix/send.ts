@@ -346,15 +346,13 @@ export async function sendMessageMatrix(
       if (opts.mediaUrl) {
         await client.prepareRoomForMessageSend(roomId, plannedEvents[0]?.content);
       }
-      let platformDispatchStarted = false;
-      if (!durableIdentity) {
-        await opts.onPlatformSendDispatch?.();
-        platformDispatchStarted = true;
-      }
       const acceptedEvents: MatrixReceiptEvent[] = [];
       const acceptedContents: string[] = [];
       let lastMessageId = "";
       for (const planned of plannedEvents) {
+        if (!durableIdentity) {
+          await opts.onPlatformSendDispatch?.();
+        }
         const eventId = await client.sendMessage(
           roomId,
           planned.content,
@@ -370,10 +368,7 @@ export async function sendMessageMatrix(
                   events: plannedEvents,
                   dispatch,
                 });
-                if (!platformDispatchStarted) {
-                  await opts.onPlatformSendDispatch?.();
-                  platformDispatchStarted = true;
-                }
+                await opts.onPlatformSendDispatch?.();
               }
             : undefined,
         );

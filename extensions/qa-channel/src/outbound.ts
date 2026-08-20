@@ -19,6 +19,7 @@ type QaChannelTextSendParams = {
   threadId?: string | number | null;
   replyToId?: string | number | null;
   attachments?: QaBusAttachment[];
+  onPlatformSendDispatch?: () => Promise<void>;
 };
 
 type QaChannelMediaAccessParams = {
@@ -31,6 +32,7 @@ export async function sendQaChannelText(params: QaChannelTextSendParams) {
   const account = resolveQaChannelAccount({ cfg: params.cfg, accountId: params.accountId });
   const resolved = resolveQaTargetThread({ target: params.to, threadId: params.threadId });
   const parsed = resolved.target;
+  await params.onPlatformSendDispatch?.();
   const { message } = await sendQaBusMessage({
     baseUrl: account.baseUrl,
     accountId: account.accountId,

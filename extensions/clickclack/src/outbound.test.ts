@@ -489,7 +489,7 @@ describe("sendClickClackMedia", () => {
     expect(attachUpload).toHaveBeenCalledWith("msg_out", "upl_existing");
   });
 
-  it("marks dispatch once before upload-first durable delivery", async () => {
+  it("refreshes ownership before each finalizing media operation", async () => {
     const order: string[] = [];
     const onPlatformSendDispatch = vi.fn(async () => {
       order.push("dispatch");
@@ -502,6 +502,9 @@ describe("sendClickClackMedia", () => {
       order.push("message");
       return { id: "msg_out" };
     });
+    attachUpload.mockImplementationOnce(async () => {
+      order.push("attach");
+    });
 
     await sendClickClackMedia({
       cfg,
@@ -513,8 +516,34 @@ describe("sendClickClackMedia", () => {
       onPlatformSendDispatch,
     });
 
-    expect(order).toEqual(["dispatch", "upload", "message"]);
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(order).toEqual(["upload", "dispatch", "message", "dispatch", "attach"]);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes ownership before an attachment retry", async () => {
+    const order: string[] = [];
+    const onPlatformSendDispatch = vi.fn(async () => {
+      order.push("dispatch");
+    });
+    attachUpload
+      .mockImplementationOnce(async () => {
+        order.push("attach-1");
+        throw new Error("attachment response lost");
+      })
+      .mockImplementationOnce(async () => {
+        order.push("attach-2");
+      });
+
+    await sendClickClackMedia({
+      cfg,
+      to: "channel:general",
+      text: "Artifact proof",
+      mediaUrl: "/workspace/viewer-proof.ts",
+      onPlatformSendDispatch,
+    });
+
+    expect(order).toEqual(["dispatch", "dispatch", "attach-1", "dispatch", "attach-2"]);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(3);
   });
 
   it("rejects a durable send without a stable part index before reading media", async () => {

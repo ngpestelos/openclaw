@@ -719,6 +719,7 @@ export async function deliverCommentThreadText(
     comment_id: string;
     content: string;
     is_whole_comment?: boolean;
+    onPlatformSendDispatch?: () => Promise<void>;
   },
 ): Promise<
   | ({ success: true; reply_id?: string } & Record<string, unknown> & {
@@ -753,16 +754,16 @@ export async function deliverCommentThreadText(
       `[feishu_drive] whole-comment compatibility path ` +
         `comment=${params.comment_id} file_type=${params.file_type} mode=add_comment`,
     );
-    return {
-      delivery_mode: "add_comment",
-      ...(await addComment(client, {
-        file_token: params.file_token,
-        file_type: wholeCommentFileType,
-        content: params.content,
-      })),
-    };
+    await params.onPlatformSendDispatch?.();
+    const comment = await addComment(client, {
+      file_token: params.file_token,
+      file_type: wholeCommentFileType,
+      content: params.content,
+    });
+    return { delivery_mode: "add_comment", ...comment };
   }
   try {
+    await params.onPlatformSendDispatch?.();
     return {
       delivery_mode: "reply_comment",
       ...(await replyComment(client, params)),
@@ -778,14 +779,13 @@ export async function deliverCommentThreadText(
           `comment=${params.comment_id} file_type=${params.file_type} mode=add_comment ` +
           `log_id=${error.feishuLogId ?? "unknown"}`,
       );
-      return {
-        delivery_mode: "add_comment",
-        ...(await addComment(client, {
-          file_token: params.file_token,
-          file_type: fallbackFileType,
-          content: params.content,
-        })),
-      };
+      await params.onPlatformSendDispatch?.();
+      const comment = await addComment(client, {
+        file_token: params.file_token,
+        file_type: fallbackFileType,
+        content: params.content,
+      });
+      return { delivery_mode: "add_comment", ...comment };
     }
     throw error;
   }

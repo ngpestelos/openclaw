@@ -232,11 +232,15 @@ export async function postSlackMessageBestEffort(params: {
   metadata?: MessageMetadata;
   mrkdwn?: boolean;
   unfurl?: SlackUnfurlOptions;
+  onPlatformSendDispatch?: () => Promise<void>;
 }) {
   const basePayload = buildSlackPostMessagePayload(params);
   const postChatMessage = params.client.chat.postMessage.bind(params.client.chat);
   const post = async (payload: SlackPostMessagePayload, identity?: SlackPostMessageIdentity) => ({
-    response: await withSlackDnsRequestRetry("chat.postMessage", () => postChatMessage(payload)),
+    response: await withSlackDnsRequestRetry("chat.postMessage", async () => {
+      await params.onPlatformSendDispatch?.();
+      return await postChatMessage(payload);
+    }),
     identity,
   });
   const posted = await postSlackMessageWithIdentityFallback({
@@ -346,18 +350,18 @@ export async function uploadSlackFile(params: {
     cleanupUploadTimeout();
   }
 
-  await params.onPlatformSendDispatch?.();
   // Slack allows this finalize call only once. Keep only the pre-connect DNS
   // retry; a timeout or broader retry would create an unknown-send state.
   const completionClient = params.completionClient ?? params.client;
-  const completeResp = await withSlackDnsRequestRetry("files.completeUploadExternal", () =>
-    completionClient.files.completeUploadExternal({
+  const completeResp = await withSlackDnsRequestRetry("files.completeUploadExternal", async () => {
+    await params.onPlatformSendDispatch?.();
+    return await completionClient.files.completeUploadExternal({
       files: [{ id: uploadFileId, title: uploadTitle }],
       channel_id: params.channelId,
       ...(params.caption ? { initial_comment: params.caption } : {}),
       ...(params.threadTs ? { thread_ts: params.threadTs } : {}),
-    }),
-  );
+    });
+  });
   if (!completeResp.ok) {
     throw new Error(`Failed to complete upload: ${completeResp.error ?? "unknown error"}`);
   }

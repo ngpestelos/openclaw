@@ -37,6 +37,7 @@ type QaChannelPayloadSendContext = Pick<
   | "mediaAccess"
   | "mediaLocalRoots"
   | "mediaReadFile"
+  | "onPlatformSendDispatch"
 >;
 
 function createQaChannelMessageReceipt(
@@ -71,6 +72,7 @@ async function sendQaChannelMessagePayload(ctx: QaChannelPayloadSendContext) {
     isError: ctx.payload.isError,
     threadId: ctx.threadId,
     replyToId: ctx.replyToId,
+    onPlatformSendDispatch: ctx.onPlatformSendDispatch,
   };
   const result =
     mediaUrls.length === 0
@@ -115,6 +117,7 @@ const qaChannelMessageAdapter = defineChannelMessageAdapter({
         text: ctx.text,
         threadId: ctx.threadId,
         replyToId: ctx.replyToId,
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch,
       });
       return {
         messageId: result.messageId,
@@ -133,6 +136,7 @@ const qaChannelMessageAdapter = defineChannelMessageAdapter({
         mediaReadFile: ctx.mediaReadFile,
         threadId: ctx.threadId,
         replyToId: ctx.replyToId,
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch,
       });
       return {
         messageId: result.messageId,

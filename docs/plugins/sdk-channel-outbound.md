@@ -93,7 +93,18 @@ export const demoMessageAdapter = defineChannelMessageAdapter({
     },
   },
   send: {
-    text: async ({ cfg, to, text, accountId, replyToId, threadId, signal }) => {
+    text: async ({
+      cfg,
+      to,
+      text,
+      accountId,
+      replyToId,
+      threadId,
+      signal,
+      onPlatformSendDispatch,
+    }) => {
+      // Run this after local preparation and before every provider I/O attempt.
+      await onPlatformSendDispatch?.();
       const sent = await sendDemoMessage({
         cfg,
         to,

@@ -394,11 +394,11 @@ export async function sendTelegramPayloadMessages(params: {
     if (typeof replyToMessageId !== "number") {
       throw new Error("Telegram reaction requires a reply target");
     }
-    await params.baseOpts.onPlatformSendDispatch?.();
     const reactionResult = await params.react(params.to, replyToMessageId, reactionEmoji, {
       cfg: params.baseOpts.cfg,
       accountId: params.baseOpts.accountId,
       gatewayClientScopes: params.baseOpts.gatewayClientScopes,
+      onPlatformSendDispatch: params.baseOpts.onPlatformSendDispatch,
       verbose: false,
     });
     if (!reactionResult.ok) {

@@ -849,6 +849,7 @@ const mattermostOutbound: ChannelOutboundAdapter = {
         buttons: buttons?.length ? buttons : undefined,
         attachmentText,
         onDeliveryResult: createMattermostDeliveryProgressReporter(ctx.onDeliveryResult),
+        onPlatformSendDispatch: ctx.onPlatformSendDispatch,
       });
       return attachChannelToResult("mattermost", toMattermostOutboundResult(result));
     }
@@ -868,7 +869,16 @@ const mattermostOutbound: ChannelOutboundAdapter = {
   },
   ...createAttachedChannelResultAdapter({
     channel: "mattermost",
-    sendText: async ({ cfg, to, text, accountId, replyToId, threadId, onDeliveryResult }) =>
+    sendText: async ({
+      cfg,
+      to,
+      text,
+      accountId,
+      replyToId,
+      threadId,
+      onDeliveryResult,
+      onPlatformSendDispatch,
+    }) =>
       toMattermostOutboundResult(
         await (
           await loadMattermostChannelRuntime()
@@ -877,6 +887,7 @@ const mattermostOutbound: ChannelOutboundAdapter = {
           accountId: accountId ?? undefined,
           replyToId: replyToId ?? (threadId != null ? String(threadId) : undefined),
           onDeliveryResult: createMattermostDeliveryProgressReporter(onDeliveryResult),
+          onPlatformSendDispatch,
         }),
       ),
     sendMedia: async ({
@@ -891,6 +902,7 @@ const mattermostOutbound: ChannelOutboundAdapter = {
       replyToId,
       threadId,
       onDeliveryResult,
+      onPlatformSendDispatch,
     }) =>
       toMattermostOutboundResult(
         await (
@@ -905,6 +917,7 @@ const mattermostOutbound: ChannelOutboundAdapter = {
           requireMediaUpload: requiresMattermostMediaUpload(mediaUrl) ? true : undefined,
           replyToId: replyToId ?? (threadId != null ? String(threadId) : undefined),
           onDeliveryResult: createMattermostDeliveryProgressReporter(onDeliveryResult),
+          onPlatformSendDispatch,
         }),
       ),
   }),

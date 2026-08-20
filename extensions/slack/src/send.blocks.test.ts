@@ -819,7 +819,7 @@ describe("sendMessageSlack blocks", () => {
     expect(postedMessage(client, 1).text).toContain(
       "Pipeline report (table)\nAccount\tARR\nAcme\t$125k",
     );
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
     expect(onDeliveryResult.mock.calls.map((call) => call[0]?.messageId)).toEqual(["171234.568"]);
     expect(result).toMatchObject({
       messageId: "171234.568",
@@ -884,7 +884,7 @@ describe("sendMessageSlack blocks", () => {
       "Pipeline\n\nPipeline (table)\nAccount\nAcme\n\nApprove",
     );
     expect(postedMessage(client, 1).text).not.toContain("yes");
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
     expect(onDeliveryResult).not.toHaveBeenCalled();
   });
 
@@ -908,7 +908,7 @@ describe("sendMessageSlack blocks", () => {
       mrkdwn: false,
     });
     expect(result.receipt.platformMessageIds).toEqual(["171234.567"]);
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
   });
 
   it("posts a valid native table once when its accessibility fallback is overlong", async () => {
@@ -993,7 +993,7 @@ describe("sendMessageSlack blocks", () => {
     const deliveredText = fallbackPosts.map((post) => post.text).join("");
     expect(deliveredText).toBe(["Large pipeline (table)", header, ...accounts].join("\n"));
     expect(deliveredText).toContain("<@U123>");
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(4);
   });
 
   it("retains every explicit chunk receipt for a rejected 12k native table", async () => {
@@ -1137,7 +1137,7 @@ describe("sendMessageSlack blocks", () => {
       .join("");
     expect(fallbackSectionText).toBe(`${caption} (table)\nAccount\nAcme`);
     expect(fallbackPosts.map((post) => post.text).join("\n")).not.toContain("yes");
-    expect(onPlatformSendDispatch).toHaveBeenCalledOnce();
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(4);
   });
 
   it("does not fall back from non-invalid_blocks native table errors", async () => {
@@ -1314,13 +1314,16 @@ describe("sendMessageSlack blocks", () => {
       .mockRejectedValueOnce(slackDnsRequestError())
       .mockResolvedValueOnce({ ts: "171234.999" });
 
+    const onPlatformSendDispatch = vi.fn(async () => undefined);
     const result = await sendMessageSlack("channel:C123", "hello", {
       token: "xoxb-test",
       cfg: SLACK_TEST_CFG,
       client,
+      onPlatformSendDispatch,
     });
 
     expect(client.chat.postMessage).toHaveBeenCalledTimes(2);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
     expect(result.messageId).toBe("171234.999");
     expect(result.channelId).toBe("C123");
     expect(result.receipt.parts[0]?.platformMessageId).toBe("171234.999");

@@ -163,12 +163,15 @@ async function sendPollTelegramWithContext(
     ...(opts.silent === true ? { disable_notification: true } : {}),
   };
 
-  await opts.onPlatformSendDispatch?.();
-  const result = await prepared.request(
-    () =>
-      api.sendPoll(prepared.chatId, normalizedPoll.question, normalizedPoll.options, pollParams),
-    "poll",
-  );
+  const result = await prepared.request(async () => {
+    await opts.onPlatformSendDispatch?.();
+    return await api.sendPoll(
+      prepared.chatId,
+      normalizedPoll.question,
+      normalizedPoll.options,
+      pollParams,
+    );
+  }, "poll");
   const pollId = result.poll.id;
   const routeChat = result.chat.type === "channel" ? undefined : result.chat;
   const routeMessage =

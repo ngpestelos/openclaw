@@ -115,6 +115,29 @@ describe("Feishu reply fallback for withdrawn/deleted targets", () => {
     );
   });
 
+  it("revalidates platform dispatch before a withdrawn-reply fallback", async () => {
+    const rejection = new Error("conversation owner changed");
+    replyMock.mockResolvedValue({ code: 230011, msg: "The message was withdrawn." });
+    const onPlatformSendDispatch = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(rejection);
+
+    await expect(
+      sendMessageFeishu({
+        cfg: {} as never,
+        to: "user:ou_target",
+        text: "hello",
+        replyToMessageId: "om_parent",
+        onPlatformSendDispatch,
+      }),
+    ).rejects.toThrow("conversation owner changed");
+
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
+    expect(replyMock).toHaveBeenCalledOnce();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       label: "text",

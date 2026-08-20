@@ -179,6 +179,47 @@ describe("createDiscordRetryRunner error classification", () => {
 });
 
 describe("createDiscordRetryRunner create safety", () => {
+  it("refreshes ownership before every retried message-create attempt", async () => {
+    const order: string[] = [];
+    const onPlatformSendDispatch = vi.fn(async () => {
+      order.push("dispatch");
+    });
+    const fn = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        order.push("send-1");
+        throw Object.assign(new Error("connect refused"), { code: "ECONNREFUSED" });
+      })
+      .mockImplementationOnce(async () => {
+        order.push("send-2");
+        return "ok";
+      });
+    const runner = createDiscordRetryRunner({ retry: ZERO_DELAY_RETRY });
+
+    await expect(
+      runner(fn, "text", { safety: "nonce-protected-create", onPlatformSendDispatch }),
+    ).resolves.toBe("ok");
+
+    expect(order).toEqual(["dispatch", "send-1", "dispatch", "send-2"]);
+    expect(onPlatformSendDispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not start an attempt when ownership refresh is rejected", async () => {
+    const fn = vi.fn(async () => "sent");
+    const runner = createDiscordRetryRunner({ retry: ZERO_DELAY_RETRY });
+
+    await expect(
+      runner(fn, "text", {
+        safety: "nonce-protected-create",
+        onPlatformSendDispatch: async () => {
+          throw new Error("ownership changed");
+        },
+      }),
+    ).rejects.toThrow("ownership changed");
+
+    expect(fn).not.toHaveBeenCalled();
+  });
+
   it("retries post-connect-ambiguous errors for nonce-protected creates", async () => {
     const fn = vi
       .fn()

@@ -26,7 +26,7 @@ import {
 } from "./conversation-errors.js";
 import {
   assertConversationPlatformSendAuthorized,
-  isConversationRouteEligibleForAgent,
+  resolveConversationRouteEligibilityForAgent,
 } from "./conversation-route-ownership.js";
 
 type ConversationTurnDeps = ConversationDeliveryDeps & {
@@ -250,13 +250,15 @@ export async function runGatewayConversationTurn(
       `Conversation not found: ${params.conversationRef} (use conversations_list)`,
     );
   }
-  if (
-    !isConversationRouteEligibleForAgent({
-      config: params.config,
-      agentId: params.agentId,
-      conversation: discoveredConversation,
-    })
-  ) {
+  const eligibility = resolveConversationRouteEligibilityForAgent({
+    config: params.config,
+    agentId: params.agentId,
+    conversation: discoveredConversation,
+  });
+  if (eligibility === "unavailable") {
+    throw new Error(`Conversation ownership is temporarily unavailable: ${params.conversationRef}`);
+  }
+  if (eligibility === "denied") {
     throw new ConversationInputError(
       `Conversation is no longer available to this agent: ${params.conversationRef} (use conversations_list)`,
     );
