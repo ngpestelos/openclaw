@@ -18,6 +18,7 @@ import {
   runWithGatewayIndependentRootWorkAdmission,
 } from "../process/gateway-work-admission.js";
 import { startSessionUpstreamMonitor } from "../sessions/session-upstream-monitor.js";
+import { resolveGatewayPluginConfig } from "./runtime-plugin-config.js";
 import type { GatewayCronReconciliation } from "./server-cron-reconciled.js";
 import type { GatewayCronState } from "./server-cron.js";
 import type { startGatewayMaintenanceTimers } from "./server-maintenance.js";
@@ -220,9 +221,9 @@ function startPendingOutboundDeliveryRecovery(params: {
           ...delivery,
           ...(completion?.kind === "conversation"
             ? {
-                onPlatformSendAdmission: async () =>
+                onPlatformSendDispatch: async () =>
                   assertQueuedConversationPlatformSendAuthorized({
-                    config: delivery.cfg,
+                    config: resolveGatewayPluginConfig({ config: getRuntimeConfig() }),
                     completion,
                   }),
               }

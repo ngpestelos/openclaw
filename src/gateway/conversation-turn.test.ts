@@ -159,8 +159,8 @@ function persistIntent(input: Record<string, unknown>): void {
   });
 }
 
-async function admitPlatformSend(input: Record<string, unknown>): Promise<void> {
-  await (input.onPlatformSendAdmission as () => Promise<void>)();
+async function dispatchPlatformSend(input: Record<string, unknown>): Promise<void> {
+  await (input.onPlatformSendDispatch as () => Promise<void>)();
 }
 
 describe("runGatewayConversationTurn", () => {
@@ -175,7 +175,7 @@ describe("runGatewayConversationTurn", () => {
     deps.resolveConversation.mockReturnValueOnce(unbound).mockReturnValue(conversation);
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       persistIntent(input);
-      await admitPlatformSend(input);
+      await dispatchPlatformSend(input);
       return sentResult();
     }) as never;
 
@@ -215,7 +215,7 @@ describe("runGatewayConversationTurn", () => {
         suppressTranscriptMirror: true,
       });
       persistIntent(input);
-      await admitPlatformSend(input);
+      await dispatchPlatformSend(input);
       capture = claimPendingConversationTurnReply({
         agentId: "main",
         conversationRef: conversation.conversationRef,
@@ -278,7 +278,7 @@ describe("runGatewayConversationTurn", () => {
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       expect(input).toMatchObject({ preparedMessageId: "reef-authoritative-a" });
       persistIntent(input);
-      await admitPlatformSend(input);
+      await dispatchPlatformSend(input);
       capture = claimPendingConversationTurnReply({
         agentId: "main",
         conversationRef: conversation.conversationRef,
@@ -663,7 +663,7 @@ describe("runGatewayConversationTurn", () => {
     const deps = createDeps();
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       persistIntent(input);
-      await admitPlatformSend(input);
+      await dispatchPlatformSend(input);
       return sentResult("reef-different-id");
     }) as never;
 
@@ -702,7 +702,7 @@ describe("runGatewayConversationTurn", () => {
         to: "molty",
         durability: "required",
       });
-      await admitPlatformSend(input);
+      await dispatchPlatformSend(input);
       return {
         ...sentResult(),
         sendResult: { ...sentResult().sendResult, deliveryStatus: "suppressed" as const },

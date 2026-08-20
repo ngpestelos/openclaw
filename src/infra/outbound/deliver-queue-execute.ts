@@ -198,8 +198,6 @@ export async function deliverOutboundPayloadsWithQueueCleanup(
     requiredUnknownSendReconciliation: exactReconciliationRequired,
     onPlatformSendStart: async (route, sourceIndex) => {
       params.abortSignal?.throwIfAborted();
-      await params.onPlatformSendAdmission?.(route);
-      params.abortSignal?.throwIfAborted();
       platformSendRoute = route;
       if (platformQueueId && !exactReconciliationRequired && queuedPreSendState === undefined) {
         queuedPreSendState = await persistQueuedPreSendState({

@@ -186,13 +186,19 @@ describe("conversations.send Gateway handler", () => {
   });
 
   it("owns the send and rejects operation-id reuse with different source input", async () => {
-    const runConversationSend = vi.fn(async () => sendResult);
+    const runConversationSend = vi.fn(
+      async (_params: Parameters<typeof runGatewayConversationSend>[0]) => sendResult,
+    );
     const handler = createConversationHandlers({
       cancelConversationTurn: vi.fn(),
       runConversationSend,
       runConversationTurn: vi.fn(),
     })["conversations.send"]!;
-    const gatewayContext = context();
+    let currentConfig: ReturnType<GatewayRequestContext["getRuntimeConfig"]> = {};
+    const gatewayContext = {
+      ...context(),
+      getRuntimeConfig: () => currentConfig,
+    } as GatewayRequestContext;
     const respond = vi.fn<RespondFn>();
 
     await invokeSend({ handler, context: gatewayContext, respond });
@@ -206,6 +212,9 @@ describe("conversations.send Gateway handler", () => {
         message: "hello molty",
       }),
     );
+    currentConfig = { channels: { reef: { enabled: false } } };
+    const readCurrentConfig = runConversationSend.mock.calls[0]?.[0]?.readCurrentConfig;
+    expect(readCurrentConfig?.()).toEqual(currentConfig);
     expect(respond).toHaveBeenCalledWith(true, sendResult, undefined, { channel: "reef" });
 
     const mismatchRespond = vi.fn<RespondFn>();

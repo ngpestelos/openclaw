@@ -71,7 +71,7 @@ function createDeps() {
       to: "molty",
       durability: "required",
     });
-    await (input.onPlatformSendAdmission as () => Promise<void>)();
+    await (input.onPlatformSendDispatch as () => Promise<void>)();
     return sentResult();
   });
   return {
@@ -185,6 +185,78 @@ describe("runGatewayConversationSend", () => {
       channel: "reef",
       messageId: "reef-outbound-1",
       queueId: "queue-1",
+    });
+  });
+
+  it("rejects a send reassigned after durable intent persistence", async () => {
+    const deps = createDeps();
+    const initialConfig = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "reef", accountId: "default" },
+        },
+      ],
+    };
+    let currentConfig = initialConfig;
+    deps.runMessageActionMock.mockImplementationOnce(async (input: Record<string, unknown>) => {
+      const onDeliveryIntent = input.onDeliveryIntent as (intent: {
+        id: string;
+        channel: string;
+        to: string;
+        durability: "required";
+      }) => void;
+      onDeliveryIntent({
+        id: "queue-reassigned",
+        channel: "reef",
+        to: "molty",
+        durability: "required",
+      });
+      currentConfig = {
+        ...initialConfig,
+        bindings: [
+          {
+            type: "route",
+            agentId: "finance",
+            match: { channel: "reef", accountId: "default" },
+          },
+        ],
+      };
+      try {
+        await (input.onPlatformSendDispatch as () => Promise<void>)();
+      } catch (error) {
+        const queued = deps.operations.get("send-reassigned");
+        if (queued) {
+          deps.operations.set("send-reassigned", {
+            ...queued,
+            status: "rejected",
+            rejectionError: error instanceof Error ? error.message : String(error),
+          });
+        }
+        throw error;
+      }
+      return sentResult();
+    });
+
+    await expect(
+      runGatewayConversationSend(
+        {
+          config: initialConfig,
+          readCurrentConfig: () => currentConfig,
+          agentId: "main",
+          senderIsOwner: true,
+          operationId: "send-reassigned",
+          conversationRef: conversation.conversationRef,
+          message: "must stay with the current owner",
+        },
+        deps,
+      ),
+    ).rejects.toThrow("Conversation is no longer available to this agent");
+    expect(deps.operations.get("send-reassigned")).toMatchObject({
+      status: "rejected",
+      queueId: "queue-reassigned",
     });
   });
 

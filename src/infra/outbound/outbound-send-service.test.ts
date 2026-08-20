@@ -317,7 +317,7 @@ describe("executeSendAction", () => {
   it("makes required queue persistence force core delivery and lifecycle callbacks", async () => {
     const onDeliveryIntent = vi.fn();
     const onDeliveryResult = vi.fn();
-    const onPlatformSendAdmission = vi.fn(async () => undefined);
+    const onPlatformSendDispatch = vi.fn(async () => undefined);
     mocks.dispatchChannelMessageAction.mockResolvedValue(pluginActionResult("msg-plugin"));
     mocks.sendMessage.mockResolvedValue({
       channel: "demo-outbound",
@@ -336,7 +336,7 @@ describe("executeSendAction", () => {
         dryRun: false,
         requireQueuePersistence: true,
         onDeliveryIntent,
-        onPlatformSendAdmission,
+        onPlatformSendDispatch,
         onDeliveryResult,
       },
       to: "channel:123",
@@ -348,7 +348,7 @@ describe("executeSendAction", () => {
       queuePolicy: "required",
       requireUnknownSendReconciliation: false,
       onDeliveryIntent,
-      onPlatformSendAdmission,
+      onPlatformSendDispatch,
       onDeliveryResult,
     });
   });

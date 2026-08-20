@@ -2246,7 +2246,23 @@ describe("deliverOutboundPayloads", () => {
       "conversation owner changed before delivery",
       { cause: new Error("route reassigned"), retryable: false },
     );
-    const sendMatrix = vi.fn();
+    const providerSend = vi.fn();
+    const messageSendText = vi.fn(async (ctx: ChannelMessageSendTextContext) => {
+      await ctx.onPlatformSendDispatch?.();
+      providerSend();
+      return {
+        messageId: "message-after-reassignment",
+        receipt: createMessageReceiptFromOutboundResults({
+          results: [{ channel: "matrix", messageId: "message-after-reassignment" }],
+          kind: "text",
+        }),
+      };
+    });
+    setMatrixMessageAdapter({
+      id: "matrix",
+      durableFinal: { capabilities: { text: true } },
+      send: { text: messageSendText },
+    });
     completionMocks.rejectDurableDelivery.mockImplementationOnce(() => {
       order.push("reject-owner");
     });
@@ -2256,21 +2272,21 @@ describe("deliverOutboundPayloads", () => {
 
     await expect(
       deliverMatrix({
-        deps: { matrix: sendMatrix },
         queuePolicy: "required",
         deliveryCompletion: {
           kind: "conversation",
           agentId: "main",
           operationId: "operation-owner-changed",
         },
-        onPlatformSendAdmission: async () => {
+        onPlatformSendDispatch: async () => {
           order.push("revalidate-owner");
           throw rejection;
         },
       }),
     ).rejects.toThrow(rejection.message);
 
-    expect(sendMatrix).not.toHaveBeenCalled();
+    expect(messageSendText).toHaveBeenCalledOnce();
+    expect(providerSend).not.toHaveBeenCalled();
     expect(order).toEqual(["revalidate-owner", "reject-owner", "ack-queue"]);
     expect(completionMocks.rejectDurableDelivery).toHaveBeenCalledWith(
       expect.objectContaining({ operationId: "operation-owner-changed" }),

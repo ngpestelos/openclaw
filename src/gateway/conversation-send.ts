@@ -74,6 +74,7 @@ function resultForCompletedOperation(
 export async function runGatewayConversationSend(
   params: {
     config: OpenClawConfig;
+    readCurrentConfig?: () => OpenClawConfig;
     agentId: string;
     senderIsOwner: boolean;
     sourceSessionKey?: string;
@@ -132,9 +133,9 @@ export async function runGatewayConversationSend(
       operationId: params.operationId,
       operationKind: "send",
       ...(operation ? { operation } : {}),
-      onPlatformSendAdmission: async () =>
+      onPlatformSendDispatch: async () =>
         assertConversationPlatformSendAuthorized({
-          config: params.config,
+          config: params.readCurrentConfig?.() ?? params.config,
           agentId: params.agentId,
           conversationRef: params.conversationRef,
           scope,

@@ -343,6 +343,11 @@ describe("server-runtime-services", () => {
 
   it("activates heartbeat, cron, and delivery recovery after sidecars are ready", async () => {
     vi.useFakeTimers();
+    const configModule = await import("../config/config.js");
+    const currentConfig = { channels: { discord: { enabled: false } } };
+    const runtimeConfig = vi
+      .spyOn(configModule, "getRuntimeConfig")
+      .mockReturnValue(currentConfig as never);
     const log = createLog();
     const resolveGatewayContext = () => undefined;
     const { cronStart, services } = activateScheduledServicesForTest({
@@ -369,11 +374,11 @@ describe("server-runtime-services", () => {
     });
     const recover = hoisted.recoverPendingDeliveries.mock.calls[0]?.[0];
     hoisted.deliverOutboundPayloads.mockImplementationOnce(async (delivery) => {
-      await delivery.onPlatformSendAdmission?.({ channel: "reef", to: "reef:molty" });
+      await delivery.onPlatformSendDispatch?.();
       return [];
     });
     await recover?.deliver({
-      cfg: {},
+      cfg: { channels: { discord: { enabled: true } } },
       channel: "reef",
       to: "reef:molty",
       payloads: [],
@@ -384,7 +389,7 @@ describe("server-runtime-services", () => {
       },
     });
     expect(hoisted.assertQueuedConversationPlatformSendAuthorized).toHaveBeenCalledWith({
-      config: {},
+      config: currentConfig,
       completion: {
         kind: "conversation",
         agentId: "main",
@@ -413,6 +418,7 @@ describe("server-runtime-services", () => {
       },
       "recovered",
     );
+    runtimeConfig.mockRestore();
     expect(hoisted.settleQueuedSessionDelivery).toHaveBeenCalledWith(
       { id: "settled-delivery-1", sessionKey: "agent:main:cron:job:run:run-1" },
       "recovered",

@@ -147,7 +147,7 @@ export async function sendGatewayConversationMessage(params: {
   operationKind: ConversationDeliveryRecord["operationKind"];
   operation?: ConversationDeliveryRecord;
   preparedMessageId?: string;
-  onPlatformSendAdmission: () => Promise<void>;
+  onPlatformSendDispatch: () => Promise<void>;
   signal?: AbortSignal;
 }): Promise<ConversationMessageDeliveryResult> {
   const scope = resolveConversationDeliveryStoreScope(params.context);
@@ -206,7 +206,7 @@ export async function sendGatewayConversationMessage(params: {
         ...(scope.storePath ? { storePath: scope.storePath } : {}),
       },
       onDeliveryIntent,
-      onPlatformSendAdmission: params.onPlatformSendAdmission,
+      onPlatformSendDispatch: params.onPlatformSendDispatch,
       ...(begun.record.preparedMessageId
         ? { preparedMessageId: begun.record.preparedMessageId }
         : {}),

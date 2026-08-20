@@ -318,6 +318,8 @@ export function createConversationHandlers(
         execute: async () =>
           await deps.runConversationSend({
             config,
+            readCurrentConfig: () =>
+              resolveGatewayPluginConfig({ config: context.getRuntimeConfig() }),
             agentId: request.agentId,
             senderIsOwner: isAuthenticatedOwner(client),
             ...(request.sourceSessionKey ? { sourceSessionKey: request.sourceSessionKey } : {}),
@@ -401,6 +403,8 @@ export function createConversationHandlers(
         execute: async () =>
           await deps.runConversationTurn({
             config,
+            readCurrentConfig: () =>
+              resolveGatewayPluginConfig({ config: context.getRuntimeConfig() }),
             agentId: request.agentId,
             senderIsOwner: isAuthenticatedOwner(client),
             ...(request.sourceSessionKey ? { sourceSessionKey: request.sourceSessionKey } : {}),

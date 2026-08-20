@@ -208,6 +208,7 @@ async function ensureConversationContextBinding(params: {
 export async function runGatewayConversationTurn(
   params: {
     config: OpenClawConfig;
+    readCurrentConfig?: () => OpenClawConfig;
     agentId: string;
     senderIsOwner: boolean;
     sourceSessionKey?: string;
@@ -341,9 +342,9 @@ export async function runGatewayConversationTurn(
       operationKind: "turn",
       operation: begun.record,
       preparedMessageId,
-      onPlatformSendAdmission: async () =>
+      onPlatformSendDispatch: async () =>
         assertConversationPlatformSendAuthorized({
-          config: params.config,
+          config: params.readCurrentConfig?.() ?? params.config,
           agentId: params.agentId,
           conversationRef: params.conversationRef,
           scope,
