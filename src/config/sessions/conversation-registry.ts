@@ -39,6 +39,8 @@ export type ConversationRecord = {
   observedFromSession?: true;
   /** Exact contextual facts from the inbound route that admitted this address. */
   routeContext?: ConversationRouteContext;
+  /** True when authoritative ingress observed that route context was empty or populated. */
+  routeContextObserved?: true;
   firstSeenAt: number;
   lastSeenAt: number;
 };
@@ -154,7 +156,7 @@ function mapConversationRow(
       ? parseSessionEntryJson({ entry_json: row.current_entry_json })
       : null;
   const hasCurrentBinding = currentEntry?.sessionId === row.current_session_id;
-  const routeContext = ownedAssociation
+  const storedRouteContext = ownedAssociation
     ? parseStoredConversationRouteContext(
         row.route_context_json ? safeParseJsonRecord(row.route_context_json) : undefined,
         row.last_seen_at,
@@ -188,7 +190,8 @@ function mapConversationRow(
           }
         : {}),
       ...(ownedAssociation && role ? { observedFromSession: true as const } : {}),
-      ...(routeContext ? { routeContext } : {}),
+      ...(storedRouteContext ? { routeContextObserved: true as const } : {}),
+      ...(storedRouteContext?.context ? { routeContext: storedRouteContext.context } : {}),
       firstSeenAt:
         ownedAssociation && row.first_seen_at !== null
           ? row.first_seen_at

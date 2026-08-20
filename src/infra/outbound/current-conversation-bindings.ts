@@ -461,15 +461,21 @@ export async function bindGenericCurrentConversation(
   })).current;
 }
 
-/** Resolves a current-conversation binding and prunes it if its TTL has expired. */
+/** Inspects durable generic ownership even while a channel's live capability is unavailable. */
+export function inspectGenericCurrentConversationBinding(
+  ref: ConversationRef,
+): SessionBindingRecord | null {
+  const record = resolveCurrentConversationBindingRecord(ref);
+  return record?.bindingId.startsWith(CURRENT_BINDINGS_ID_PREFIX) ? record : null;
+}
+
+/** Resolves a binding only when its channel currently supports generic mutation. */
 export function resolveGenericCurrentConversationBinding(
   ref: ConversationRef,
 ): SessionBindingRecord | null {
-  if (!supportsGenericCurrentConversationBinding(ref)) {
-    return null;
-  }
-  const record = resolveCurrentConversationBindingRecord(ref);
-  return record?.bindingId.startsWith(CURRENT_BINDINGS_ID_PREFIX) ? record : null;
+  return supportsGenericCurrentConversationBinding(ref)
+    ? inspectGenericCurrentConversationBinding(ref)
+    : null;
 }
 
 /** Lists non-expired current-conversation bindings owned by one target session. */

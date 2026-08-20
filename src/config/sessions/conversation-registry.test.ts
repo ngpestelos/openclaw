@@ -85,6 +85,7 @@ describe("conversation registry", () => {
     expect(conversations.every((entry) => entry.role === "participant")).toBe(true);
     expect(conversations.every((entry) => entry.sessionKey === scope.sessionKey)).toBe(true);
     expect(conversations.every((entry) => entry.observedFromSession === true)).toBe(true);
+    expect(conversations.every((entry) => entry.routeContextObserved === true)).toBe(true);
 
     const peerA = conversations.find((entry) => entry.target === "reef:peer-a");
     expect(peerA).toBeDefined();
@@ -248,9 +249,12 @@ describe("conversation registry", () => {
       deliveryContext: { channel: "discord", accountId: "default", to: "channel:rollback" },
       conversationRouteContext: { guildId: "guild-a", memberRoleIds: ["support"] },
     });
-    expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toEqual({
-      guildId: "guild-a",
-      memberRoleIds: ["support"],
+    expect(listConversations(scope, { channel: "discord" })[0]).toMatchObject({
+      routeContextObserved: true,
+      routeContext: {
+        guildId: "guild-a",
+        memberRoleIds: ["support"],
+      },
     });
 
     const resolved = resolveSqliteReadScope(scope);
@@ -286,12 +290,18 @@ describe("conversation registry", () => {
       observedFromSession: true,
     });
     expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toBeUndefined();
+    expect(
+      listConversations(scope, { channel: "discord" })[0]?.routeContextObserved,
+    ).toBeUndefined();
 
     await upsertCanonicalSessionEntry(scope, { label: "after rollback" });
     expect(loadSessionEntry(scope)).toMatchObject({ label: "after rollback" });
     expect(loadSessionEntry(scope)?.conversationRouteContext).toBeUndefined();
     expect(loadSessionEntry(scope)?.conversationRouteContextFingerprint).toBeUndefined();
     expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toBeUndefined();
+    expect(
+      listConversations(scope, { channel: "discord" })[0]?.routeContextObserved,
+    ).toBeUndefined();
   });
 
   it("assigns an unscoped session association only to its fixed-store owner", async () => {

@@ -180,6 +180,56 @@ describe("isConversationRouteEligibleForAgent", () => {
     });
   });
 
+  it("does not let a plugin fallback bypass unknown contextual provenance", () => {
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "discord",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "discord" }),
+            messaging: {
+              resolveConversationRouteOwner: () => ({ kind: "agent" as const, agentId: "main" }),
+            },
+          },
+        },
+      ]),
+    );
+    const config = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: { channel: "discord", accountId: "default", guildId: "guild-a" },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "discord", accountId: "default" },
+        },
+      ],
+    };
+    const conversation = {
+      channel: "discord",
+      accountId: "default",
+      kind: "channel" as const,
+      peerId: "ops-room",
+      observedFromSession: true as const,
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+      false,
+    );
+    expect(
+      isConversationRouteEligibleForAgent({
+        config,
+        agentId: "main",
+        conversation: { ...conversation, routeContextObserved: true },
+      }),
+    ).toBe(true);
+  });
+
   it("replays configured conversation bindings before authorizing an agent", () => {
     setActivePluginRegistry(
       createTestRegistry([
@@ -568,7 +618,45 @@ describe("isConversationRouteEligibleForAgent", () => {
     ).toBe(true);
   });
 
-  it("ignores an unrelated peer binding for a contextless threaded conversation", () => {
+  it("ignores an unrelated peer binding after authoritative context-free ingress", () => {
+    const config = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: {
+            channel: "feishu",
+            accountId: "default",
+            peer: { kind: "group" as const, id: "finance-room" },
+          },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "feishu", accountId: "default" },
+        },
+      ],
+    };
+    const conversation = {
+      channel: "feishu",
+      accountId: "default",
+      kind: "group" as const,
+      peerId: "general-room",
+      threadId: "topic-7",
+      observedFromSession: true as const,
+      routeContextObserved: true as const,
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+      true,
+    );
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "finance", conversation })).toBe(
+      false,
+    );
+  });
+
+  it("fails closed when a threaded session association has unknown route context", () => {
     const config = {
       agents: { entries: { main: {}, finance: {} } },
       bindings: [
@@ -598,7 +686,7 @@ describe("isConversationRouteEligibleForAgent", () => {
     };
 
     expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
-      true,
+      false,
     );
     expect(isConversationRouteEligibleForAgent({ config, agentId: "finance", conversation })).toBe(
       false,

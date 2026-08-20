@@ -25,6 +25,7 @@ type ConversationRouteCandidate = Pick<
   | "parentConversationRef"
   | "peerId"
   | "routeContext"
+  | "routeContextObserved"
   | "threadId"
 >;
 
@@ -84,6 +85,7 @@ function resolvePluginRouteOwner(
 function bindingPeerCouldMatchConversation(
   binding: ReturnType<typeof listRouteBindings>[number],
   conversation: ConversationRouteCandidate,
+  unknownParent: boolean,
 ): boolean {
   const peer = binding.match.peer;
   if (!peer) {
@@ -97,7 +99,7 @@ function bindingPeerCouldMatchConversation(
   if (peerKindMatches(kind, conversation.kind) && (id === "*" || id === conversation.peerId)) {
     return true;
   }
-  return false;
+  return unknownParent && conversation.kind !== "direct" && kind !== "direct";
 }
 
 function resolveRouteOwner(
@@ -166,6 +168,7 @@ function hasUnrecordedContextualBinding(
   config: OpenClawConfig,
   conversation: ConversationRouteCandidate,
   resolvedAgentId: string,
+  unknownContext: boolean,
 ): boolean {
   const channel = normalizeLowercaseStringOrEmpty(conversation.channel);
   const accountId = normalizeAccountId(conversation.accountId);
@@ -186,7 +189,7 @@ function hasUnrecordedContextualBinding(
       normalizeAgentId(binding.agentId) !== resolvedAgentId &&
       normalizeLowercaseStringOrEmpty(binding.match.channel) === channel &&
       (pattern === "*" || normalizeAccountId(pattern) === accountId) &&
-      bindingPeerCouldMatchConversation(binding, conversation)
+      bindingPeerCouldMatchConversation(binding, conversation, unknownContext && hasThreadContext)
     );
   });
 }
@@ -199,11 +202,22 @@ export function isConversationRouteEligibleForAgent(params: {
 }): boolean {
   const agentId = normalizeAgentId(params.agentId);
   const conversation = params.conversation;
+  const hasObservedRouteContext = Boolean(
+    conversation.routeContextObserved || conversation.routeContext,
+  );
+  const unknownContext = Boolean(conversation.observedFromSession && !hasObservedRouteContext);
   const pluginRoute = resolvePluginRouteOwner(params.config, conversation);
   if (pluginRoute.handled) {
-    return pluginRoute.agentId === agentId;
+    return (
+      pluginRoute.agentId === agentId &&
+      !(
+        unknownContext &&
+        pluginRoute.agentId &&
+        hasUnrecordedContextualBinding(params.config, conversation, pluginRoute.agentId, true)
+      )
+    );
   }
-  if (conversation.observedFromSession && conversation.routeContext) {
+  if (hasObservedRouteContext && conversation.routeContext) {
     const route = resolveRouteOwner(params.config, conversation, conversation.routeContext);
     return route
       ? resolveGenericRouteOwner(params.config, conversation, route, conversation.routeContext)
@@ -218,8 +232,16 @@ export function isConversationRouteEligibleForAgent(params: {
   if (resolvedOwner !== agentId) {
     return false;
   }
-  if (route.matchedBy === "binding.peer" || route.matchedBy === "binding.peer.wildcard") {
+  if (
+    !unknownContext &&
+    (route.matchedBy === "binding.peer" || route.matchedBy === "binding.peer.wildcard")
+  ) {
     return true;
   }
-  return !hasUnrecordedContextualBinding(params.config, conversation, resolvedOwner);
+  return !hasUnrecordedContextualBinding(
+    params.config,
+    conversation,
+    resolvedOwner,
+    unknownContext,
+  );
 }

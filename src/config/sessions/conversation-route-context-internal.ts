@@ -62,26 +62,31 @@ function conversationRouteContextFingerprint(entry: ConversationRouteSessionEntr
   return `sha256:${crypto.createHash("sha256").update(source).digest("hex")}`;
 }
 
-export function conversationRouteContextFromSessionEntry(
+type ConversationRouteContextObservation = {
+  context?: ConversationRouteContext;
+};
+
+export function inspectConversationRouteContextFromSessionEntry(
   entry: ConversationRouteSessionEntry | null | undefined,
-): ConversationRouteContext | undefined {
-  if (!entry?.conversationRouteContextFingerprint) {
+): ConversationRouteContextObservation | undefined {
+  if (
+    !entry?.conversationRouteContextFingerprint ||
+    entry.conversationRouteContextFingerprint !== conversationRouteContextFingerprint(entry)
+  ) {
     return undefined;
   }
   const context = parseConversationRouteContext(entry.conversationRouteContext);
-  return context &&
-    entry.conversationRouteContextFingerprint === conversationRouteContextFingerprint(entry)
-    ? context
-    : undefined;
+  return context ? { context } : {};
+}
+
+export function conversationRouteContextFromSessionEntry(
+  entry: ConversationRouteSessionEntry | null | undefined,
+): ConversationRouteContext | undefined {
+  return inspectConversationRouteContextFromSessionEntry(entry)?.context;
 }
 
 export function stampConversationRouteContext(entry: ConversationRouteSessionEntry): void {
   const context = parseConversationRouteContext(entry.conversationRouteContext);
-  if (!context) {
-    entry.conversationRouteContext = undefined;
-    entry.conversationRouteContextFingerprint = undefined;
-    return;
-  }
   entry.conversationRouteContext = context;
   entry.conversationRouteContextFingerprint = conversationRouteContextFingerprint(entry);
 }
@@ -92,15 +97,14 @@ export function reconcileConversationRouteContext(
   previousEntry?: ConversationRouteSessionEntry | null,
 ): void {
   const context = parseConversationRouteContext(entry.conversationRouteContext);
-  if (!context) {
-    stampConversationRouteContext(entry);
+  if (inspectConversationRouteContextFromSessionEntry(entry)) {
     return;
   }
-  if (conversationRouteContextFromSessionEntry(entry)) {
-    return;
-  }
-  const previousContext = conversationRouteContextFromSessionEntry(previousEntry);
-  if (previousContext && JSON.stringify(previousContext) === JSON.stringify(context)) {
+  const previousObservation = inspectConversationRouteContextFromSessionEntry(previousEntry);
+  if (
+    previousObservation &&
+    JSON.stringify(previousObservation.context) === JSON.stringify(context)
+  ) {
     stampConversationRouteContext(entry);
     return;
   }
@@ -111,22 +115,24 @@ export function reconcileConversationRouteContext(
 type StoredConversationRouteContext = {
   version: 1;
   observedAt: number;
-  context: ConversationRouteContext;
+  context: ConversationRouteContext | null;
 };
 
 export function serializeStoredConversationRouteContext(
   context: ConversationRouteContext | undefined,
   observedAt: number,
-): string | null {
-  return context
-    ? JSON.stringify({ version: 1, observedAt, context } satisfies StoredConversationRouteContext)
-    : null;
+): string {
+  return JSON.stringify({
+    version: 1,
+    observedAt,
+    context: context ?? null,
+  } satisfies StoredConversationRouteContext);
 }
 
 export function parseStoredConversationRouteContext(
   value: unknown,
   expectedObservedAt: number | null,
-): ConversationRouteContext | undefined {
+): ConversationRouteContextObservation | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
@@ -135,5 +141,9 @@ export function parseStoredConversationRouteContext(
   ) {
     return undefined;
   }
-  return parseConversationRouteContext(value.context);
+  const context = parseConversationRouteContext(value.context);
+  if (value.context !== null && !context) {
+    return undefined;
+  }
+  return context ? { context } : {};
 }

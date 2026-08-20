@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   conversationRouteContextFromSessionEntry,
+  inspectConversationRouteContextFromSessionEntry,
   reconcileConversationRouteContext,
   stampConversationRouteContext,
 } from "./conversation-route-context-internal.js";
@@ -82,5 +83,27 @@ describe("session route context provenance", () => {
     expect(entry.conversationRouteContextFingerprint).not.toBe(
       previousEntry.conversationRouteContextFingerprint,
     );
+  });
+
+  it("distinguishes authoritative empty context from unstamped input", () => {
+    const authoritativeEmpty: InternalSessionEntry = {
+      sessionId: "session-empty",
+      lifecycleRevision: "revision-empty",
+      updatedAt: 100,
+    };
+    stampConversationRouteContext(authoritativeEmpty);
+
+    expect(inspectConversationRouteContextFromSessionEntry(authoritativeEmpty)).toEqual({});
+    expect(conversationRouteContextFromSessionEntry(authoritativeEmpty)).toBeUndefined();
+
+    const unstampedEmpty: InternalSessionEntry = {
+      sessionId: "session-unknown",
+      lifecycleRevision: "revision-unknown",
+      updatedAt: 100,
+    };
+    reconcileConversationRouteContext(unstampedEmpty);
+
+    expect(inspectConversationRouteContextFromSessionEntry(unstampedEmpty)).toBeUndefined();
+    expect(unstampedEmpty.conversationRouteContextFingerprint).toBeUndefined();
   });
 });

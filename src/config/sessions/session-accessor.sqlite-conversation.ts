@@ -6,7 +6,7 @@ import {
   type ConversationIdentity,
 } from "./conversation-identity.js";
 import {
-  conversationRouteContextFromSessionEntry,
+  inspectConversationRouteContextFromSessionEntry,
   parseStoredConversationRouteContext,
   serializeStoredConversationRouteContext,
 } from "./conversation-route-context-internal.js";
@@ -19,6 +19,7 @@ type SessionConversationRole = "participant" | "primary" | "related";
 type PreparedSessionConversation = {
   identity: ConversationIdentity;
   role: SessionConversationRole;
+  routeContextObserved: boolean;
   routeContext?: ConversationRouteContext;
 };
 
@@ -31,15 +32,29 @@ export function prepareSessionConversation(params: {
   if (!identity) {
     return null;
   }
-  const routeContext = conversationRouteContextFromSessionEntry(params.entry);
+  const routeContextObservation = inspectConversationRouteContextFromSessionEntry(params.entry);
+  const routeContext = routeContextObservation?.context;
   return {
     identity,
     role:
       params.sessionScope === "shared-main" && identity.kind === "direct"
         ? "participant"
         : "primary",
+    routeContextObserved: Boolean(routeContextObservation),
     ...(routeContext ? { routeContext } : {}),
   };
+}
+
+function refreshStoredRouteContext(
+  value: string | null,
+  previousObservedAt: number,
+  observedAt: number,
+): string | null {
+  const stored = parseStoredConversationRouteContext(
+    value ? safeParseJsonRecord(value) : undefined,
+    previousObservedAt,
+  );
+  return stored ? serializeStoredConversationRouteContext(stored.context, observedAt) : null;
 }
 
 /** Upserts the address before the session row so its primary-conversation FK is always valid. */
@@ -117,11 +132,9 @@ export function linkSessionConversation(params: {
               session_id: sessionId,
               conversation_id: row.conversation_id,
               role: "related",
-              route_context_json: serializeStoredConversationRouteContext(
-                parseStoredConversationRouteContext(
-                  row.route_context_json ? safeParseJsonRecord(row.route_context_json) : undefined,
-                  row.last_seen_at,
-                ),
+              route_context_json: refreshStoredRouteContext(
+                row.route_context_json,
+                row.last_seen_at,
                 updatedAt,
               ),
               first_seen_at: row.first_seen_at,
@@ -164,19 +177,17 @@ export function linkSessionConversation(params: {
         session_id: sessionId,
         conversation_id: conversation.identity.conversationRef,
         role: conversation.role,
-        route_context_json: serializeStoredConversationRouteContext(
-          conversation.routeContext,
-          updatedAt,
-        ),
+        route_context_json: conversation.routeContextObserved
+          ? serializeStoredConversationRouteContext(conversation.routeContext, updatedAt)
+          : null,
         first_seen_at: updatedAt,
         last_seen_at: updatedAt,
       })
       .onConflict((conflict) =>
         conflict.columns(["session_id", "conversation_id", "role"]).doUpdateSet({
-          route_context_json: serializeStoredConversationRouteContext(
-            conversation.routeContext,
-            updatedAt,
-          ),
+          route_context_json: conversation.routeContextObserved
+            ? serializeStoredConversationRouteContext(conversation.routeContext, updatedAt)
+            : null,
           last_seen_at: updatedAt,
         }),
       ),

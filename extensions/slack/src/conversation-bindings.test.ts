@@ -13,6 +13,7 @@ import {
 } from "openclaw/plugin-sdk/session-binding-runtime";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { slackPlugin } from "./channel.js";
+import { inspectSlackConversationRouteOwner } from "./conversation-route-owner.js";
 import { registerSlackInstallationState } from "./installation-identity-state.js";
 import type { OpenClawConfig } from "./runtime-api.js";
 import { setSlackRuntime } from "./runtime.js";
@@ -123,5 +124,38 @@ describe("Slack runtime conversation bindings", () => {
       targetSessionKey: existing.targetSessionKey,
       metadata: { lastActivityAt: originalActivityAt },
     });
+  });
+
+  it("keeps durable ownership visible to detached inspection after monitor release", async () => {
+    const conversation = {
+      channel: "slack",
+      accountId: "default",
+      conversationId: "C456",
+    };
+    await getSessionBindingService().bind({
+      targetSessionKey: "agent:finance:bound",
+      targetKind: "session",
+      conversation,
+    });
+    const inspectOwner = () =>
+      inspectSlackConversationRouteOwner({
+        cfg: {
+          agents: { entries: { main: {}, finance: {} } },
+          bindings: [
+            {
+              type: "route",
+              agentId: "main",
+              match: { channel: "slack", accountId: "default" },
+            },
+          ],
+        },
+        accountId: "default",
+        conversation: { kind: "channel", peerId: "C456" },
+      });
+
+    expect(inspectOwner()).toEqual({ kind: "agent", agentId: "finance" });
+    installationState.release();
+    expect(getSessionBindingService().resolveByConversation(conversation)).toBeNull();
+    expect(inspectOwner()).toEqual({ kind: "agent", agentId: "finance" });
   });
 });

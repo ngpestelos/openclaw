@@ -15,6 +15,7 @@ import {
   type SessionBindingAdapter,
   type SessionBindingBindInput,
   type SessionBindingRecord,
+  type SessionBindingService,
 } from "./session-binding-service.js";
 
 type SessionBindingServiceModule = typeof import("./session-binding-service.js");
@@ -222,6 +223,14 @@ describe("session binding service", () => {
       adapter,
     });
     expect(service.inspectByConversation(conversation)).toEqual({ status: "unavailable" });
+  });
+
+  it("keeps the inspection addition compatible with existing service implementations", () => {
+    const { inspectByConversation: _inspect, ...existingImplementation } =
+      getSessionBindingService();
+    const publicService: SessionBindingService = existingImplementation;
+
+    expect(publicService.resolveByConversation).toBeTypeOf("function");
   });
 
   it("supports explicit child placement when adapter advertises it", async () => {
