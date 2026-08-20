@@ -30,6 +30,15 @@ export function inspectSlackConversationRouteOwner(params: {
   if (!target || target.kind !== (direct ? "user" : "channel")) {
     return null;
   }
+  // Qualified targets are durable Enterprise evidence even after monitor state is released;
+  // degraded state makes only an unqualified target ambiguous.
+  const targetIsEnterprise = Boolean(target.teamId);
+  if (
+    (targetIsEnterprise && installationKind === "workspace") ||
+    (!targetIsEnterprise && installationKind === "degraded")
+  ) {
+    return null;
+  }
   const contextTeamId = params.conversation.context?.teamId?.trim();
   if (
     contextTeamId &&
@@ -46,10 +55,11 @@ export function inspectSlackConversationRouteOwner(params: {
   ) {
     return null;
   }
-  if (installationKind === "enterprise" && !teamId) {
+  const enterpriseRoute = installationKind === "enterprise" || targetIsEnterprise;
+  if (enterpriseRoute && !teamId) {
     return null;
   }
-  const enterpriseScope = installationKind === "enterprise" && teamId ? { teamId } : undefined;
+  const enterpriseScope = enterpriseRoute && teamId ? { teamId } : undefined;
   const route = resolveAgentRoute({
     cfg: normalizeSlackRouteBindingConfig(params.cfg),
     channel: "slack",
@@ -74,7 +84,7 @@ export function inspectSlackConversationRouteOwner(params: {
     accountId: params.accountId,
     baseConversationId,
     runtimeBindingThreadId: params.conversation.threadId,
-    bindingsEnabled: installationKind !== "enterprise",
+    bindingsEnabled: !enterpriseRoute,
     touchBinding: false,
   });
   if (bindingRoute.runtimeRoute.pluginId) {

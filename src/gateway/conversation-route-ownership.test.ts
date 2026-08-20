@@ -3,6 +3,7 @@ import type { AgentBindingMatch } from "../config/types.agents.js";
 import {
   registerSessionBindingAdapter,
   testing as sessionBindingTesting,
+  unregisterSessionBindingAdapter,
 } from "../infra/outbound/session-binding-service.js";
 import {
   initializeGlobalHookRunner,
@@ -267,6 +268,63 @@ describe("isConversationRouteEligibleForAgent", () => {
       false,
     );
     expect(touch).not.toHaveBeenCalled();
+  });
+
+  it("revokes detached eligibility while an adapter-owned store reloads", () => {
+    const conversation = {
+      channel: "discord",
+      accountId: "default",
+      kind: "channel" as const,
+      peerId: "support-room",
+    };
+    const adapter = {
+      channel: "discord",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => ({
+        bindingId: "binding-reload",
+        targetSessionKey: "agent:finance:bound",
+        targetKind: "session" as const,
+        conversation: {
+          channel: "discord",
+          accountId: "default",
+          conversationId: "support-room",
+        },
+        status: "active" as const,
+        boundAt: 1,
+      }),
+    };
+    registerSessionBindingAdapter(adapter);
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "discord",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "discord" }),
+            conversationBindings: {
+              supportsCurrentConversationBinding: true,
+              bindingStore: "adapter" as const,
+            },
+          },
+        },
+      ]),
+    );
+
+    expect(
+      isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
+    ).toBe(true);
+    unregisterSessionBindingAdapter({
+      channel: "discord",
+      accountId: "default",
+      adapter,
+    });
+    expect(
+      isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
+    ).toBe(false);
+    expect(isConversationRouteEligibleForAgent({ config: {}, agentId: "main", conversation })).toBe(
+      false,
+    );
   });
 
   it("denies every agent while an active plugin owns the conversation", () => {

@@ -1,13 +1,51 @@
 import {
   registerSessionBindingAdapter,
+  type SessionBindingAdapter,
   testing as sessionBindingTesting,
+  unregisterSessionBindingAdapter,
 } from "openclaw/plugin-sdk/conversation-runtime";
+import {
+  createTestRegistry,
+  resetPluginRuntimeStateForTest,
+  setActivePluginRegistry,
+} from "openclaw/plugin-sdk/plugin-test-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inspectDiscordConversationRouteOwner } from "./conversation-route-owner.js";
 
 describe("inspectDiscordConversationRouteOwner", () => {
-  beforeEach(() => sessionBindingTesting.resetSessionBindingAdaptersForTests());
-  afterEach(() => sessionBindingTesting.resetSessionBindingAdaptersForTests());
+  let emptyAdapter: SessionBindingAdapter;
+
+  beforeEach(() => {
+    resetPluginRuntimeStateForTest();
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "discord",
+          source: "test",
+          plugin: {
+            id: "discord",
+            meta: { aliases: [] },
+            conversationBindings: {
+              supportsCurrentConversationBinding: true,
+              bindingStore: "adapter",
+            },
+          },
+        },
+      ]),
+    );
+    sessionBindingTesting.resetSessionBindingAdaptersForTests();
+    emptyAdapter = {
+      channel: "discord",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => null,
+    };
+    registerSessionBindingAdapter(emptyAdapter);
+  });
+  afterEach(() => {
+    resetPluginRuntimeStateForTest();
+    sessionBindingTesting.resetSessionBindingAdaptersForTests();
+  });
 
   it("uses the user runtime key and native configured key for direct messages", () => {
     const touch = vi.fn();
@@ -71,5 +109,43 @@ describe("inspectDiscordConversationRouteOwner", () => {
         conversation: { kind: "channel", peerId: "channel-1", nativeChannelId: "channel-1" },
       }),
     ).toEqual({ kind: "plugin", pluginId: "review-plugin", fallbackAgentId: "main" });
+  });
+
+  it("fails closed only while an enabled binding store is unavailable", () => {
+    sessionBindingTesting.resetSessionBindingAdaptersForTests();
+    const boundAdapter: SessionBindingAdapter = {
+      channel: "discord",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: (conversation) => ({
+        bindingId: "binding-reload",
+        targetSessionKey: "agent:finance:bound",
+        targetKind: "session",
+        conversation,
+        status: "active",
+        boundAt: 1,
+      }),
+    };
+    registerSessionBindingAdapter(boundAdapter);
+    const conversation = { kind: "channel" as const, peerId: "channel-1" };
+
+    expect(
+      inspectDiscordConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
+    ).toEqual({ kind: "agent", agentId: "finance" });
+    unregisterSessionBindingAdapter({
+      channel: "discord",
+      accountId: "default",
+      adapter: boundAdapter,
+    });
+    expect(
+      inspectDiscordConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
+    ).toBeNull();
+    expect(
+      inspectDiscordConversationRouteOwner({
+        cfg: { channels: { discord: { threadBindings: { enabled: false } } } },
+        accountId: "default",
+        conversation,
+      }),
+    ).toEqual({ kind: "agent", agentId: "main" });
   });
 });

@@ -29,6 +29,9 @@ export function resolveMatrixConversationRouteOwner(params: {
     threadId: conversation.threadId,
     resolveAgentRoute,
   });
+  if (!result.bindingOwnerAvailable) {
+    return null;
+  }
   if (result.runtimeBindingId && !parseAgentSessionKey(result.route.sessionKey)?.agentId) {
     // Matrix's binding store cannot yet project plugin metadata. A runtime target without
     // an agent-owned session key therefore cannot authorize detached agent delivery.

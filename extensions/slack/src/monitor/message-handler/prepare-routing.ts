@@ -162,8 +162,13 @@ export function resolveSlackConversationBindingRoute(params: {
           },
         })
       : null;
-  const runtimeRoute = !params.bindingsEnabled
-    ? { route: params.route, bindingRecord: null, boundSessionKey: undefined }
+  const runtimeRoute: RuntimeConversationBindingRouteResult = !params.bindingsEnabled
+    ? {
+        bindingOwnerAvailable: true,
+        route: params.route,
+        bindingRecord: null,
+        boundSessionKey: undefined,
+      }
     : boundThreadRoute?.boundSessionKey || boundThreadRoute?.bindingRecord
       ? boundThreadRoute
       : resolveRuntimeConversationBindingRoute({

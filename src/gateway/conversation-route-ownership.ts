@@ -150,6 +150,11 @@ function resolveGenericRouteOwner(
     touchBinding: false,
     conversation: bindingConversation,
   });
+  if (!runtimeRoute.bindingOwnerAvailable) {
+    // A missing custom store cannot prove the conversation was unbound; detached delivery waits
+    // for its owner to return rather than reassigning it through configured/static fallback.
+    return {};
+  }
   if (runtimeRoute.pluginId) {
     return hasGlobalPluginHook(runtimeRoute.pluginId, "inbound_claim")
       ? {}

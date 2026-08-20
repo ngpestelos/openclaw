@@ -43,6 +43,7 @@ type TelegramConversationBindingMode =
 type TelegramConversationRouteResult = {
   route: TelegramResolvedRoute;
   bindingMode: TelegramConversationBindingMode;
+  bindingOwnerAvailable: boolean;
 };
 
 type ResolveTelegramConversationRouteParams = {
@@ -168,6 +169,7 @@ function resolveTelegramConversationRouteWithRuntimePolicy(
   return {
     route,
     bindingMode,
+    bindingOwnerAvailable: runtimeRoute.bindingOwnerAvailable,
   };
 }
 

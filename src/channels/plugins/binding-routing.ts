@@ -34,6 +34,7 @@ export type ConfiguredBindingRouteResult = {
  * Route resolution after applying a runtime conversation binding record.
  */
 export type RuntimeConversationBindingRouteResult = {
+  bindingOwnerAvailable: boolean;
   bindingRecord: SessionBindingRecord | null;
   route: ResolvedAgentRoute;
   boundSessionKey?: string;
@@ -140,12 +141,21 @@ export function resolveRuntimeConversationBindingRoute(
     touchBinding?: boolean;
   } & ConfiguredBindingRouteConversationInput,
 ): RuntimeConversationBindingRouteResult {
-  const bindingRecord = getSessionBindingService().resolveByConversation(
+  const inspection = getSessionBindingService().inspectByConversation(
     resolveConfiguredBindingConversationRef(params),
   );
+  if (inspection.status === "unavailable") {
+    return {
+      bindingOwnerAvailable: false,
+      bindingRecord: null,
+      route: params.route,
+    };
+  }
+  const bindingRecord = inspection.binding;
   const boundSessionKey = bindingRecord?.targetSessionKey?.trim();
   if (!bindingRecord || !boundSessionKey) {
     return {
+      bindingOwnerAvailable: true,
       bindingRecord: null,
       route: params.route,
     };
@@ -157,6 +167,7 @@ export function resolveRuntimeConversationBindingRoute(
       `ignored runtime conversation binding ${bindingRecord.bindingId} to isolated cron run session ${boundSessionKey}`,
     );
     return {
+      bindingOwnerAvailable: true,
       bindingRecord: null,
       route: params.route,
     };
@@ -170,6 +181,7 @@ export function resolveRuntimeConversationBindingRoute(
     // Plugin-owned binding records are observed but not route-rewritten by core; the owning
     // plugin is responsible for its runtime target handoff.
     return {
+      bindingOwnerAvailable: true,
       bindingRecord,
       pluginId,
       route: params.route,
@@ -178,6 +190,7 @@ export function resolveRuntimeConversationBindingRoute(
 
   const boundAgentId = resolveAgentIdFromSessionKey(boundSessionKey) || params.route.agentId;
   return {
+    bindingOwnerAvailable: true,
     bindingRecord,
     boundSessionKey,
     boundAgentId,

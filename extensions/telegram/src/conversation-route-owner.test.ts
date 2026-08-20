@@ -4,13 +4,50 @@ import {
   registerSessionBindingAdapter,
   type SessionBindingAdapter,
   testing,
+  unregisterSessionBindingAdapter,
 } from "openclaw/plugin-sdk/conversation-runtime";
+import {
+  createTestRegistry,
+  resetPluginRuntimeStateForTest,
+  setActivePluginRegistry,
+} from "openclaw/plugin-sdk/plugin-test-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inspectTelegramConversationRouteOwner } from "./conversation-route-owner.js";
 
 describe("inspectTelegramConversationRouteOwner", () => {
-  beforeEach(() => testing.resetSessionBindingAdaptersForTests());
-  afterEach(() => testing.resetSessionBindingAdaptersForTests());
+  let emptyAdapter: SessionBindingAdapter;
+
+  beforeEach(() => {
+    resetPluginRuntimeStateForTest();
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: {
+            id: "telegram",
+            meta: { aliases: [] },
+            conversationBindings: {
+              supportsCurrentConversationBinding: true,
+              bindingStore: "adapter",
+            },
+          },
+        },
+      ]),
+    );
+    testing.resetSessionBindingAdaptersForTests();
+    emptyAdapter = {
+      channel: "telegram",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => null,
+    };
+    registerSessionBindingAdapter(emptyAdapter);
+  });
+  afterEach(() => {
+    resetPluginRuntimeStateForTest();
+    testing.resetSessionBindingAdaptersForTests();
+  });
 
   it("revalidates forum topics through their parent group binding", () => {
     const cfg: OpenClawConfig = {
@@ -161,5 +198,43 @@ describe("inspectTelegramConversationRouteOwner", () => {
       }),
     ).toEqual({ kind: "plugin", pluginId: "review-plugin", fallbackAgentId: "main" });
     expect(touch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed only while an enabled binding store is unavailable", () => {
+    testing.resetSessionBindingAdaptersForTests();
+    const boundAdapter: SessionBindingAdapter = {
+      channel: "telegram",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: (conversation) => ({
+        bindingId: "binding-reload",
+        targetSessionKey: "agent:finance:bound",
+        targetKind: "session",
+        conversation,
+        status: "active",
+        boundAt: 1,
+      }),
+    };
+    registerSessionBindingAdapter(boundAdapter);
+    const conversation = { kind: "group" as const, peerId: "-100123:topic:42", threadId: "42" };
+
+    expect(
+      inspectTelegramConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
+    ).toEqual({ kind: "agent", agentId: "finance" });
+    unregisterSessionBindingAdapter({
+      channel: "telegram",
+      accountId: "default",
+      adapter: boundAdapter,
+    });
+    expect(
+      inspectTelegramConversationRouteOwner({ cfg: {}, accountId: "default", conversation }),
+    ).toBeNull();
+    expect(
+      inspectTelegramConversationRouteOwner({
+        cfg: { channels: { telegram: { threadBindings: { enabled: false } } } },
+        accountId: "default",
+        conversation,
+      }),
+    ).toEqual({ kind: "agent", agentId: "main" });
   });
 });

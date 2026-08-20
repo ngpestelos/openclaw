@@ -1,5 +1,6 @@
 // Telegram route ownership inspection reuses canonical plugin routing without refreshing bindings.
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
+import { resolveThreadBindingSpawnPolicy } from "openclaw/plugin-sdk/conversation-runtime";
 import { parseStrictNonNegativeInteger } from "openclaw/plugin-sdk/number-runtime";
 import { resolveTelegramAccount } from "./accounts.js";
 import { inspectTelegramConversationRoute } from "./conversation-route.js";
@@ -65,6 +66,18 @@ export function inspectTelegramConversationRouteOwner(params: {
     senderId: params.conversation.kind === "direct" ? parsed.chatId : undefined,
     topicAgentId: topicConfig?.agentId,
   });
+  if (
+    !result.bindingOwnerAvailable &&
+    // Disabled bindings intentionally have no adapter, so topic/configured routing stays valid.
+    resolveThreadBindingSpawnPolicy({
+      cfg: params.cfg,
+      channel: "telegram",
+      accountId: params.accountId,
+      kind: "subagent",
+    }).enabled
+  ) {
+    return null;
+  }
   if (result.bindingMode.kind !== "plugin-owned-runtime") {
     return { kind: "agent" as const, agentId: result.route.agentId };
   }

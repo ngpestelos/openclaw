@@ -7,6 +7,7 @@ import {
   bindGenericCurrentConversation,
   getGenericCurrentConversationBindingCapabilities,
   listGenericCurrentConversationBindingsBySession,
+  requiresRegisteredSessionBindingAdapter,
   resolveGenericCurrentConversationBinding,
   touchGenericCurrentConversationBinding,
   unbindGenericCurrentConversationBindings,
@@ -57,6 +58,9 @@ export type SessionBindingService = {
   bind: (input: SessionBindingBindInput) => Promise<SessionBindingRecord>;
   getCapabilities: (params: { channel: string; accountId: string }) => SessionBindingCapabilities;
   listBySession: (targetSessionKey: string) => SessionBindingRecord[];
+  inspectByConversation: (
+    ref: ConversationRef,
+  ) => { status: "available"; binding: SessionBindingRecord | null } | { status: "unavailable" };
   resolveByConversation: (ref: ConversationRef) => SessionBindingRecord | null;
   touch: (bindingId: string, at?: number) => void;
   unbind: (input: SessionBindingUnbindInput) => Promise<SessionBindingRecord[]>;
@@ -208,6 +212,25 @@ function dedupeBindings(records: SessionBindingRecord[]): SessionBindingRecord[]
 }
 
 function createDefaultSessionBindingService(): SessionBindingService {
+  const inspectByConversation: SessionBindingService["inspectByConversation"] = (ref) => {
+    const normalized = normalizeConversationRef(ref);
+    if (!normalized.channel || !normalized.conversationId) {
+      return { status: "available", binding: null };
+    }
+    const adapter = resolveAdapterForChannelAccount(normalized);
+    if (adapter) {
+      return { status: "available", binding: adapter.resolveByConversation(normalized) };
+    }
+    // Adapter-owned state may be briefly absent during channel restart. Treat that gap as
+    // unavailable rather than authoritatively unbound so callers cannot fall through owners.
+    if (requiresRegisteredSessionBindingAdapter(normalized)) {
+      return { status: "unavailable" };
+    }
+    return {
+      status: "available",
+      binding: resolveGenericCurrentConversationBinding(normalized),
+    };
+  };
   return {
     bind: async (input) => {
       const normalizedConversation = normalizeConversationRef(input.conversation);
@@ -297,16 +320,10 @@ function createDefaultSessionBindingService(): SessionBindingService {
       results.push(...listGenericCurrentConversationBindingsBySession(key));
       return dedupeBindings(results);
     },
+    inspectByConversation,
     resolveByConversation: (ref) => {
-      const normalized = normalizeConversationRef(ref);
-      if (!normalized.channel || !normalized.conversationId) {
-        return null;
-      }
-      const adapter = resolveAdapterForChannelAccount(normalized);
-      if (!adapter) {
-        return resolveGenericCurrentConversationBinding(normalized);
-      }
-      return adapter.resolveByConversation(normalized);
+      const result = inspectByConversation(ref);
+      return result.status === "available" ? result.binding : null;
     },
     touch: (bindingId, at) => {
       const normalizedBindingId = bindingId.trim();

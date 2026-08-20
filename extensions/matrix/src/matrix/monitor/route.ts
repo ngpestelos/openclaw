@@ -53,6 +53,7 @@ export function resolveMatrixInboundRoute(params: {
 }): {
   route: MatrixResolvedRoute;
   configuredBinding: ReturnType<typeof resolveConfiguredAcpBindingRecord>;
+  bindingOwnerAvailable: boolean;
   runtimeBindingId: string | null;
 } {
   const baseRoute = params.resolveAgentRoute({
@@ -75,12 +76,14 @@ export function resolveMatrixInboundRoute(params: {
   const bindingConversationId = params.threadId ?? params.roomId;
   const bindingParentConversationId = params.threadId ? params.roomId : undefined;
   const sessionBindingService = getSessionBindingService();
-  const runtimeBinding = sessionBindingService.resolveByConversation({
+  const bindingInspection = sessionBindingService.inspectByConversation({
     channel: "matrix",
     accountId: params.accountId,
     conversationId: bindingConversationId,
     parentConversationId: bindingParentConversationId,
   });
+  const runtimeBinding =
+    bindingInspection.status === "available" ? bindingInspection.binding : null;
   const boundSessionKey = runtimeBinding?.targetSessionKey?.trim();
 
   if (runtimeBinding && boundSessionKey) {
@@ -96,6 +99,7 @@ export function resolveMatrixInboundRoute(params: {
         matchedBy: "binding.channel",
       },
       configuredBinding: null,
+      bindingOwnerAvailable: true,
       runtimeBindingId: runtimeBinding.bindingId,
     };
   }
@@ -168,6 +172,7 @@ export function resolveMatrixInboundRoute(params: {
         }),
       },
       configuredBinding,
+      bindingOwnerAvailable: bindingInspection.status === "available",
       runtimeBindingId: runtimeBinding?.bindingId ?? null,
     };
   }
@@ -175,6 +180,7 @@ export function resolveMatrixInboundRoute(params: {
   return {
     route: routeWithDmScope,
     configuredBinding,
+    bindingOwnerAvailable: bindingInspection.status === "available",
     runtimeBindingId: runtimeBinding?.bindingId ?? null,
   };
 }

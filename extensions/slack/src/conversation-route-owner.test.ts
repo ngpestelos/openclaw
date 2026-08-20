@@ -131,4 +131,69 @@ describe("inspectSlackConversationRouteOwner", () => {
       }),
     ).toBeNull();
   });
+
+  it("keeps qualified Enterprise ownership through degraded and released monitor state", () => {
+    releaseInstallation?.();
+    const installation = registerSlackInstallationState("default", "enterprise");
+    releaseInstallation = installation.release;
+    const cfg = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: {
+            channel: "slack",
+            accountId: "default",
+            peer: { kind: "channel" as const, id: "team:T123:channel:C456" },
+          },
+        },
+      ],
+    };
+    const conversation = { kind: "channel" as const, peerId: "team:T123:channel:C456" };
+
+    expect(inspectSlackConversationRouteOwner({ cfg, accountId: "default", conversation })).toEqual(
+      { kind: "agent", agentId: "finance" },
+    );
+    installation.update("degraded");
+    expect(inspectSlackConversationRouteOwner({ cfg, accountId: "default", conversation })).toEqual(
+      { kind: "agent", agentId: "finance" },
+    );
+    installation.release();
+    releaseInstallation = undefined;
+    expect(inspectSlackConversationRouteOwner({ cfg, accountId: "default", conversation })).toEqual(
+      { kind: "agent", agentId: "finance" },
+    );
+  });
+
+  it("fails closed only when installation state conflicts with the target dialect", () => {
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg: {},
+        accountId: "default",
+        conversation: { kind: "channel", peerId: "team:T123:channel:C456" },
+      }),
+    ).toBeNull();
+
+    releaseInstallation?.();
+    const installation = registerSlackInstallationState("default", "degraded");
+    releaseInstallation = installation.release;
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg: {},
+        accountId: "default",
+        conversation: { kind: "channel", peerId: "C456" },
+      }),
+    ).toBeNull();
+
+    installation.release();
+    releaseInstallation = undefined;
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg: {},
+        accountId: "default",
+        conversation: { kind: "channel", peerId: "C456" },
+      }),
+    ).toEqual({ kind: "agent", agentId: "main" });
+  });
 });

@@ -185,7 +185,7 @@ vi.mock("openclaw/plugin-sdk/conversation-runtime", async () => {
       const bindingRecord = sessionBindingMocks.resolveByConversation(conversation);
       const boundSessionKey = bindingRecord?.targetSessionKey?.trim();
       if (!bindingRecord || !boundSessionKey) {
-        return { bindingRecord: null, route: params.route };
+        return { bindingOwnerAvailable: true, bindingRecord: null, route: params.route };
       }
       sessionBindingMocks.touch(bindingRecord.bindingId, undefined);
       return {

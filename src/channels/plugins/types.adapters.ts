@@ -739,6 +739,8 @@ export type ChannelConfiguredBindingProvider = {
 export type ChannelConversationBindingSupport = {
   supportsCurrentConversationBinding?: boolean;
   isCurrentConversationBindingSupported?: (params: { accountId: string }) => boolean;
+  /** Custom adapters own authoritative binding state; generic storage must not replace them. */
+  bindingStore?: "adapter";
   /**
    * Preferred placement when a command is started from a top-level conversation
    * without an existing native thread id.

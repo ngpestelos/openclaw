@@ -805,6 +805,7 @@ export const telegramPlugin = createChatChannelPlugin({
     },
     conversationBindings: {
       supportsCurrentConversationBinding: true,
+      bindingStore: "adapter",
       defaultTopLevelPlacement: "current",
       resolveConversationRef: ({
         accountId: _accountId,

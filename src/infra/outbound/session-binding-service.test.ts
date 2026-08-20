@@ -48,6 +48,18 @@ function setMinimalCurrentConversationRegistry(): void {
           },
         },
       },
+      {
+        pluginId: "adapter-chat",
+        source: "test",
+        plugin: {
+          id: "adapter-chat",
+          meta: { aliases: [] },
+          conversationBindings: {
+            supportsCurrentConversationBinding: true,
+            bindingStore: "adapter",
+          },
+        },
+      },
     ]),
   );
 }
@@ -166,6 +178,50 @@ describe("session binding service", () => {
       accountId: "default",
       conversationId: "thread-1",
     });
+  });
+
+  it("distinguishes an unavailable custom store from an authoritative empty result", async () => {
+    const service = getSessionBindingService();
+    const conversation = {
+      channel: "adapter-chat",
+      accountId: "default",
+      conversationId: "room-1",
+    };
+
+    expect(service.getCapabilities(conversation)).toEqual({
+      adapterAvailable: false,
+      bindSupported: false,
+      unbindSupported: false,
+      placements: [],
+    });
+    expect(service.inspectByConversation(conversation)).toEqual({ status: "unavailable" });
+    await expectSessionBindingError(
+      service.bind({
+        targetSessionKey: "agent:finance:bound",
+        targetKind: "session",
+        conversation,
+      }),
+      "BINDING_ADAPTER_UNAVAILABLE",
+    );
+
+    const adapter: SessionBindingAdapter = {
+      channel: "adapter-chat",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => null,
+    };
+    registerSessionBindingAdapter(adapter);
+    expect(service.inspectByConversation(conversation)).toEqual({
+      status: "available",
+      binding: null,
+    });
+
+    unregisterSessionBindingAdapter({
+      channel: "adapter-chat",
+      accountId: "default",
+      adapter,
+    });
+    expect(service.inspectByConversation(conversation)).toEqual({ status: "unavailable" });
   });
 
   it("supports explicit child placement when adapter advertises it", async () => {

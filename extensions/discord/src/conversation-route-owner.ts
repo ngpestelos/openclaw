@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
+import { resolveThreadBindingSpawnPolicy } from "openclaw/plugin-sdk/conversation-runtime";
 import { resolveDiscordConversationIdentity } from "./conversation-identity.js";
 import { resolveDiscordConversationBindingRoute } from "./monitor/conversation-binding-route.js";
 import { resolveDiscordConversationRoute } from "./monitor/route-resolution.js";
@@ -42,6 +43,18 @@ export function inspectDiscordConversationRouteOwner(params: {
     parentConversationId: params.conversation.context?.parentPeerId,
     touchBinding: false,
   });
+  if (
+    !runtimeRoute.bindingOwnerAvailable &&
+    // Disabled bindings intentionally have no adapter, so static/configured routing stays valid.
+    resolveThreadBindingSpawnPolicy({
+      cfg: params.cfg,
+      channel: "discord",
+      accountId: params.accountId,
+      kind: "subagent",
+    }).enabled
+  ) {
+    return null;
+  }
   if (runtimeRoute.pluginId) {
     return {
       kind: "plugin" as const,
