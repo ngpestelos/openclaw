@@ -554,26 +554,91 @@ describe("audit run explanation", () => {
         },
         {
           schemaVersion: 1,
-          receiptId: "fact-corrupt",
+          receiptId: "U2_R6_CLI_RECEIPT_ID_SECRET_97af31",
           contextId: "context-1",
           executionId: "execution-1",
           runId: "run-1",
           occurredAt: 3,
-          action: { family: "tool", operation: "decision" },
+          action: {
+            family: "tool",
+            operation: "decision",
+            summary: "U2_R6_CLI_SUMMARY_SECRET_ba9180",
+          },
           decision: { outcome: "unknown", reasonCode: "decision_fact_record_corrupt" },
           enforcement: {
             coverageState: "unknown",
-            policyRefs: [],
-            grantRefs: [],
+            policyRefs: ["U2_R6_CLI_POLICY_REF_SECRET_2bd706"],
+            grantRefs: ["U2_R6_CLI_GRANT_REF_SECRET_a14c83"],
             contextFieldsUsed: [],
           },
           source: {
-            owner: "tool-policy",
+            owner: "operator_approvals",
             recordRef: "fact-corrupt",
             decisionBoundary: "execution-decision-facts",
           },
           missingEvidence: ["decision.fact.valid"],
-          remediation: [{ code: "inspect_state_integrity", text: "Inspect state integrity." }],
+          remediation: [
+            {
+              code: "U2_R6_CLI_CODE_SECRET_f26d43",
+              text: "U2_R6_CLI_TEXT_SECRET_0c75ee",
+            },
+          ],
+        },
+      ],
+      decisionDisplays: [
+        {
+          schemaVersion: 1,
+          selectorId: "context-1:admission",
+          occurredAt: 1,
+          action: { family: "run", operation: "admission" },
+          decision: {
+            outcome: "not-applicable",
+            reasonCode: "run_admission_identity_not_evaluated",
+          },
+          enforcement: {
+            coverageState: "unattributed",
+            policyCount: 0,
+            grantCount: 0,
+            contextFieldsUsed: [],
+          },
+          provenance: { state: "verified", producer: "run-admission" },
+          missingEvidence: ["invoker.principal"],
+          remediation: [{ code: "no_claim", text: "Treat this receipt as attribution only." }],
+        },
+        {
+          schemaVersion: 1,
+          selectorId: "approval:receipt-1",
+          occurredAt: 2,
+          action: { family: "exec", operation: "approval" },
+          decision: {
+            outcome: "denied",
+            reasonCode: "operator_approval_denied_by_reviewer",
+          },
+          enforcement: {
+            coverageState: "enforced",
+            policyCount: 1,
+            grantCount: 0,
+            contextFieldsUsed: ["contextId", "executionId", "runId"],
+          },
+          provenance: { state: "verified", producer: "operator-approval" },
+          missingEvidence: [],
+          remediation: [{ code: "review_and_request_again", text: "Review the denial and retry." }],
+        },
+        {
+          schemaVersion: 1,
+          selectorId: "decision-fact:1",
+          occurredAt: 3,
+          action: { family: "decision", operation: "record" },
+          decision: { outcome: "unknown", reasonCode: "decision_fact_display_unverified" },
+          enforcement: {
+            coverageState: "unknown",
+            policyCount: 0,
+            grantCount: 0,
+            contextFieldsUsed: [],
+          },
+          provenance: { state: "unverified" },
+          missingEvidence: ["decision.display_provenance"],
+          remediation: [],
         },
       ],
       coverage: { state: "enforced", missingEvidence: ["invoker.principal"] },
@@ -617,10 +682,34 @@ describe("audit run explanation", () => {
     expect(output).toContain("operator_approval_denied_by_reviewer");
     expect(output).toContain("authoritative owner-native SQLite record; retained 30 days");
     expect(output).toContain("admission provenance only; no enforcement decision");
-    expect(output).toContain("evidence unavailable or corrupt; do not infer authorization");
     expect(output).not.toContain("named authoritative decision source");
-    expect(output).toContain("Policy refs: operator-approval:human-decision");
+    expect(output).toContain("Policy refs: 1");
+    expect(output).toContain("Policy refs: 0");
+    expect(output).toContain("Grant refs: 0");
     expect(output).toContain("Context used: contextId, executionId, runId");
+    expect(output).toContain("producer display contract unverified; receipt prose omitted");
+    for (const secret of [
+      "U2_R6_CLI_RECEIPT_ID_SECRET_97af31",
+      "U2_R6_CLI_SUMMARY_SECRET_ba9180",
+      "U2_R6_CLI_CODE_SECRET_f26d43",
+      "U2_R6_CLI_TEXT_SECRET_0c75ee",
+      "U2_R6_CLI_POLICY_REF_SECRET_2bd706",
+      "U2_R6_CLI_GRANT_REF_SECRET_a14c83",
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+
+    vi.mocked(runtime.log).mockClear();
+    await auditListCommand({ explain: true, runId: "run-1", json: true }, runtime);
+    const jsonOutput = vi.mocked(runtime.log).mock.calls.flat().join("\n");
+    expect(jsonOutput).toContain('"decisionDisplays"');
+    expect(jsonOutput).toContain('"decisions": []');
+    expect(jsonOutput).not.toContain("U2_R6_CLI_SUMMARY_SECRET_ba9180");
+    expect(jsonOutput).not.toContain("U2_R6_CLI_RECEIPT_ID_SECRET_97af31");
+    expect(jsonOutput).not.toContain("U2_R6_CLI_CODE_SECRET_f26d43");
+    expect(jsonOutput).not.toContain("U2_R6_CLI_TEXT_SECRET_0c75ee");
+    expect(jsonOutput).not.toContain("U2_R6_CLI_POLICY_REF_SECRET_2bd706");
+    expect(jsonOutput).not.toContain("U2_R6_CLI_GRANT_REF_SECRET_a14c83");
   });
 
   it("renders ambiguous run discovery and selects an exact execution", async () => {

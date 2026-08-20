@@ -4,6 +4,7 @@ import { validateAuditRunInspectParams, validateExecutionIdentityContextV1 } fro
 import {
   AuditRunInspectParamsSchema,
   AuditRunInspectResultSchema,
+  DecisionReceiptDisplayV1Schema,
   DecisionReceiptV1Schema,
   type ExecutionIdentityContextV1,
 } from "./audit-run.js";
@@ -86,6 +87,35 @@ describe("audit run inspection protocol", () => {
     expect(validateAuditRunInspectParams({ runId: "", decisionLimit: 50 })).toBe(false);
     expect(validateAuditRunInspectParams({ runId: "run-1", decisionLimit: 101 })).toBe(false);
     expect(validateAuditRunInspectParams({ runId: "run-1", extra: true })).toBe(false);
+  });
+
+  it("accepts only the bounded safe decision display contract", () => {
+    const validate = Compile(DecisionReceiptDisplayV1Schema);
+    const display = {
+      schemaVersion: 1,
+      selectorId: "decision-fact:1",
+      occurredAt: 1,
+      action: { family: "decision", operation: "record" },
+      decision: { outcome: "unknown", reasonCode: "decision_fact_display_unverified" },
+      enforcement: {
+        coverageState: "unknown",
+        policyCount: 1,
+        grantCount: 0,
+        contextFieldsUsed: [],
+      },
+      provenance: { state: "unverified" },
+      missingEvidence: ["decision.display_provenance"],
+      remediation: [],
+    };
+    expect(validate.Check(display)).toBe(true);
+    expect(validate.Check({ ...display, selectorId: undefined, receiptId: "hostile" })).toBe(false);
+    expect(validate.Check({ ...display, source: { owner: "operator_approvals" } })).toBe(false);
+    expect(
+      validate.Check({
+        ...display,
+        provenance: { state: "verified", producer: "receipt-owner" },
+      }),
+    ).toBe(false);
   });
 
   it("exports selector and discovery-pagination invariants for generated clients", () => {
