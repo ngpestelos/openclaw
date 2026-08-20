@@ -926,7 +926,11 @@ async function initSessionStateAttemptLocked(
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };
   }
-  if (!isSystemEvent && sessionCtxForState.InboundAccessAuthorized === true) {
+  if (
+    !isSystemEvent &&
+    sessionCtxForState.InboundAccessAuthorized === true &&
+    sessionCtxForState.ConversationRouteContextAuthoritative !== false
+  ) {
     sessionEntry.conversationRouteContext =
       conversationRouteContextFromMsgContext(sessionCtxForState);
   }

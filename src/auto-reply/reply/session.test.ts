@@ -467,6 +467,44 @@ describe("initSessionState guarded initialization", () => {
     );
   });
 
+  it("preserves route facts across an admitted internal reflection turn", async () => {
+    const storePath = await createStorePath("openclaw-session-route-context-reflection-");
+    const sessionKey = "agent:main:msteams:channel:ops";
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+    await initSessionState({
+      ctx: {
+        Body: "hello ops",
+        ChatType: "channel",
+        From: "msteams:channel:ops",
+        To: "channel:ops",
+        OriginatingChannel: "msteams",
+        SessionKey: sessionKey,
+        GroupSpace: "team-a",
+        InboundAccessAuthorized: true,
+      },
+      cfg,
+    });
+
+    const reflected = await initSessionState({
+      ctx: {
+        Body: "internal reflection",
+        ChatType: "channel",
+        From: "msteams:system:ops",
+        To: "conversation:ops",
+        OriginatingChannel: "msteams",
+        SessionKey: sessionKey,
+        InboundAccessAuthorized: true,
+        ConversationRouteContextAuthoritative: false,
+      },
+      cfg,
+    });
+
+    expect(reflected.sessionEntry.conversationRouteContext).toEqual({ teamId: "team-a" });
+    expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toEqual({
+      teamId: "team-a",
+    });
+  });
+
   it("registers per-group ambient visibility when direct messages use isolated sessions", async () => {
     const stateDir = await makeCaseDir("openclaw-per-group-main-watch-");
     const storePath = path.join(stateDir, "sessions.json");

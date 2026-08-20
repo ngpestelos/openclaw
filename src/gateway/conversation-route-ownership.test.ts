@@ -193,6 +193,37 @@ describe("isConversationRouteEligibleForAgent", () => {
     );
   });
 
+  it("keeps a context-free route when narrower bindings select the same agent", () => {
+    const config = {
+      agents: { entries: { main: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "slack", accountId: "default", teamId: "team-a" },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "slack", accountId: "default" },
+        },
+      ],
+    };
+
+    expect(
+      isConversationRouteEligibleForAgent({
+        config,
+        agentId: "main",
+        conversation: {
+          channel: "slack",
+          accountId: "default",
+          kind: "channel",
+          peerId: "ops-room",
+        },
+      }),
+    ).toBe(true);
+  });
+
   it.each([
     { name: "exact", peerId: "support-room" },
     { name: "wildcard", peerId: "*" },

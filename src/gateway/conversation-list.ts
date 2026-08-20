@@ -303,7 +303,9 @@ export async function runGatewayConversationList(
       break;
     }
     afterCursor = page.cursor;
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
   }
   return { conversations: selected.map(presentConversation) };
 }

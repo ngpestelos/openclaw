@@ -695,7 +695,7 @@ describe("channel turn finalize", () => {
     expect(second).toEqual({
       admission: { kind: "drop", reason: "bot-loop-protection" },
       dispatched: false,
-      ctxPayload: createCtx(),
+      ctxPayload: { ...createCtx(), InboundAccessAuthorized: true },
       routeSessionKey: "agent:main:test:peer",
     });
     expect(events).toEqual(["record", "dispatch"]);

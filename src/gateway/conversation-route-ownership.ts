@@ -52,6 +52,7 @@ function resolveRouteOwner(
 function hasUnrecordedContextualBinding(
   config: OpenClawConfig,
   conversation: ConversationRouteCandidate,
+  resolvedAgentId: string,
 ): boolean {
   const channel = normalizeLowercaseStringOrEmpty(conversation.channel);
   const accountId = normalizeAccountId(conversation.accountId);
@@ -68,6 +69,7 @@ function hasUnrecordedContextualBinding(
     );
     return (
       contextualScope &&
+      normalizeAgentId(binding.agentId) !== resolvedAgentId &&
       normalizeLowercaseStringOrEmpty(binding.match.channel) === channel &&
       (pattern === "*" || normalizeAccountId(pattern) === accountId)
     );
@@ -94,5 +96,5 @@ export function isConversationRouteEligibleForAgent(params: {
   if (route.matchedBy === "binding.peer" || route.matchedBy === "binding.peer.wildcard") {
     return true;
   }
-  return !hasUnrecordedContextualBinding(params.config, conversation);
+  return !hasUnrecordedContextualBinding(params.config, conversation, route.agentId);
 }

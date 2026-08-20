@@ -27,6 +27,7 @@ import { FIRST_USE_ADDITIVE_AGENT_COLUMN_DEFINITIONS } from "./openclaw-agent-db
 import { OPENCLAW_AGENT_SCHEMA_VERSION } from "./openclaw-agent-db-contract.js";
 import { OpenClawAgentDatabaseMediaMigrationRequiredError } from "./openclaw-agent-db-migration-required.js";
 import {
+  ensureSessionConversationRouteContextColumn,
   ensureSessionEntryValidityProjection,
   ensureSessionProjectColumn,
 } from "./openclaw-agent-db-session-migrations.js";
@@ -190,6 +191,7 @@ export function repairAndAssertOpenClawAgentV14SchemaForMigration(
   }
 
   ensureSessionProjectColumn(database);
+  ensureSessionConversationRouteContextColumn(database);
   ensureSessionEntryValidityProjection(database);
   ensureSessionKeyContractSchemaInTransaction(database);
 

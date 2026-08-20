@@ -18,6 +18,7 @@ import {
   toDatabaseOptions,
 } from "./session-accessor.sqlite-scope.js";
 import { parseSessionEntryJson } from "./session-accessor.sqlite-status.js";
+import { resolvePersistedSessionStoreOwner } from "./session-store-owner.js";
 
 const CONVERSATION_REF_PATTERN = /^conv_[a-f0-9]{32}$/u;
 
@@ -48,6 +49,7 @@ export type ConversationRegistryScope = {
   agentId: string;
   env?: NodeJS.ProcessEnv;
   storePath?: string;
+  legacySessionOwnerAgentId?: string;
 };
 
 type ConversationListOptions = {
@@ -55,7 +57,7 @@ type ConversationListOptions = {
   limit?: number;
 };
 
-export type ConversationScanPage = {
+type ConversationScanPage = {
   conversations: ConversationRecord[];
   cursor?: number;
 };
@@ -65,8 +67,11 @@ export function resolveConversationRegistryScope(params: {
   config: OpenClawConfig;
 }): ConversationRegistryScope {
   const configuredStore = params.config.session?.store;
+  const persistedOwner = resolvePersistedSessionStoreOwner(params.config);
   return {
     agentId: params.agentId,
+    legacySessionOwnerAgentId:
+      persistedOwner.kind === "none" ? params.agentId : persistedOwner.agentId,
     ...(configuredStore
       ? { storePath: resolveSessionStorePathCore(configuredStore, { agentId: params.agentId }) }
       : {}),
@@ -130,7 +135,7 @@ function mapConversationRow(
     current_session_key: string | null;
     thread_id: string | null;
   },
-  agentId: string,
+  scope: ConversationRegistryScope,
 ): MappedConversationRow | null {
   if (row.kind !== "direct" && row.kind !== "group" && row.kind !== "channel") {
     return null;
@@ -142,10 +147,10 @@ function mapConversationRow(
   const associatedAgentId = row.associated_session_key
     ? parseAgentSessionKey(row.associated_session_key)?.agentId
     : undefined;
-  const ownedAssociation = Boolean(
-    row.associated_session_key === "global" ||
-    (associatedAgentId && normalizeAgentId(associatedAgentId) === normalizeAgentId(agentId)),
-  );
+  const agentId = normalizeAgentId(scope.agentId);
+  const ownedAssociation = associatedAgentId
+    ? normalizeAgentId(associatedAgentId) === agentId
+    : normalizeAgentId(scope.legacySessionOwnerAgentId ?? scope.agentId) === agentId;
   const currentEntry =
     ownedAssociation && row.current_entry_json
       ? parseSessionEntryJson({ entry_json: row.current_entry_json })
@@ -278,7 +283,7 @@ function selectConversationRows(
   ).rows;
   const unique = new Map<string, MappedConversationRow>();
   for (const row of rows) {
-    const mapped = mapConversationRow(row, scope.agentId);
+    const mapped = mapConversationRow(row, scope);
     if (!mapped) {
       continue;
     }
@@ -300,13 +305,15 @@ function selectConversationRows(
     ) {
       // Keep the newest address activity while carrying forward the live binding
       // when a newer historical association has no current session entry.
+      const { routeContext: _staleRouteContext, ...existingRecord } = existing.record;
       unique.set(mapped.record.conversationRef, {
         ...existing,
         record: {
-          ...existing.record,
+          ...existingRecord,
           sessionId: mapped.record.sessionId,
           sessionKey: mapped.record.sessionKey,
           role: mapped.record.role,
+          ...(mapped.record.routeContext ? { routeContext: mapped.record.routeContext } : {}),
         },
       });
     }

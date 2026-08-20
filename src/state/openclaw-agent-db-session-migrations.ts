@@ -262,6 +262,16 @@ export function ensureSessionConversationRouteContextColumn(db: DatabaseSync): v
   }
 }
 
+export function hasPendingSessionProjectColumn(db: DatabaseSync): boolean {
+  const columns = readSqliteTableColumns(db, "session_nodes");
+  return Boolean(columns && !columns.has("project_id"));
+}
+
+export function hasPendingSessionConversationRouteContextColumn(db: DatabaseSync): boolean {
+  const columns = readSqliteTableColumns(db, "session_conversations");
+  return Boolean(columns && !columns.has("route_context_json"));
+}
+
 export function readSqliteTableColumns(db: DatabaseSync, tableName: string): Set<string> | null {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(tableName)) {
     throw new Error(`invalid SQLite table identifier: ${tableName}`);

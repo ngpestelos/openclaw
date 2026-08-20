@@ -187,7 +187,7 @@ describe("conversation registry", () => {
     ]);
   });
 
-  it("retains conversations associated with the global session", async () => {
+  it("assigns an unscoped session association only to its fixed-store owner", async () => {
     await upsertSessionEntry(
       { agentId: "main", sessionKey: "global", storePath },
       {
@@ -198,13 +198,24 @@ describe("conversation registry", () => {
       },
     );
 
-    expect(listConversations({ agentId: "main", storePath }, { channel: "reef" })).toEqual([
+    const ownerScope = { agentId: "main", legacySessionOwnerAgentId: "main", storePath };
+    expect(listConversations(ownerScope, { channel: "reef" })).toEqual([
       expect.objectContaining({
         sessionId: "global-session",
         sessionKey: "global",
         target: "reef:peer-a",
       }),
     ]);
+    expect(
+      listConversations(
+        { agentId: "support", legacySessionOwnerAgentId: "main", storePath },
+        { channel: "reef" },
+      )[0],
+    ).not.toMatchObject({
+      observedFromSession: true,
+      sessionId: expect.any(String),
+      sessionKey: expect.any(String),
+    });
   });
 
   it("retains a foreign-associated directory address as an unbound candidate", async () => {
@@ -344,6 +355,9 @@ describe("conversation registry", () => {
           updatedAt: 100,
           chatType: "direct",
           deliveryContext: { channel: "reef", accountId: "default", to: "reef:peer-a" },
+          conversationRouteContext: {
+            teamId: sessionId === "live-session" ? "live-team" : "stale-team",
+          },
         },
       );
     }
@@ -375,6 +389,7 @@ describe("conversation registry", () => {
       target: "reef:peer-a",
       sessionId: "live-session",
       sessionKey: liveSessionKey,
+      routeContext: { teamId: "live-team" },
       lastSeenAt: 100,
     });
   });

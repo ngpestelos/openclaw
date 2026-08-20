@@ -43,6 +43,8 @@ import {
 import {
   backfillSessionConversations,
   ensureSessionConversationRouteContextColumn,
+  hasPendingSessionConversationRouteContextColumn,
+  hasPendingSessionProjectColumn,
   ensureSessionProjectColumn,
   ensureSessionEntryValidityProjection,
   migrateConversationDeliveryTargetColumn,
@@ -153,16 +155,6 @@ function hasPendingSessionKeyContractSchemaMigration(db: DatabaseSync): boolean 
       .get(),
   );
   return !sessionNodeColumns.has("entry_valid") || !hasContractTable;
-}
-
-function hasPendingSessionProjectColumn(db: DatabaseSync): boolean {
-  const columns = readSqliteTableColumns(db, "session_nodes");
-  return Boolean(columns && !columns.has("project_id"));
-}
-
-function hasPendingSessionConversationRouteContextColumn(db: DatabaseSync): boolean {
-  const columns = readSqliteTableColumns(db, "session_conversations");
-  return Boolean(columns && !columns.has("route_context_json"));
 }
 
 function migrateMemoryChunkMetadataSchema(db: DatabaseSync): void {

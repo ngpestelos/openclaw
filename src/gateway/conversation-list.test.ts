@@ -190,7 +190,7 @@ describe("runGatewayConversationList", () => {
       expect.objectContaining({ accountId: "default", query: "@molty", limit: 50 }),
     );
     expect(deps.listConversations).toHaveBeenCalledWith(
-      { agentId: "main" },
+      { agentId: "main", legacySessionOwnerAgentId: "main" },
       { channel: "reef", limit: 50 },
     );
     expect(resolveOutboundSessionRoute).toHaveBeenCalledWith(
@@ -341,7 +341,7 @@ describe("runGatewayConversationList", () => {
       expect.objectContaining({ conversationRef: personal.conversationRef }),
     ]);
     expect(deps.listConversations).toHaveBeenCalledWith(
-      { agentId: "personal" },
+      { agentId: "personal", legacySessionOwnerAgentId: "personal" },
       {
         ...(input.channel ? { channel: "reef" } : {}),
         limit: 1,
