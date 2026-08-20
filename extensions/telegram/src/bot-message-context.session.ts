@@ -63,6 +63,7 @@ import {
 } from "./group-history-window.js";
 import { TELEGRAM_REPLY_CHAIN_MAX_DEPTH, type TelegramReplyChainEntry } from "./message-cache.js";
 import { resolveTelegramPromptMediaPath } from "./prompt-media-path.js";
+import { buildTelegramConversationId } from "./topic-conversation.js";
 
 type TelegramMentionFacts = NonNullable<
   NonNullable<BuildChannelInboundEventContextParams["access"]>["mentions"]
@@ -674,6 +675,10 @@ export async function buildTelegramInboundContextPayload(params: {
     conversation: {
       kind: conversationKind,
       id: String(chatId),
+      routePeer: {
+        kind: conversationKind,
+        id: buildTelegramConversationId({ chatId, thread: threadSpec }),
+      },
       label: conversationLabel,
       parentId: buildTelegramParentPeer({
         isGroup,

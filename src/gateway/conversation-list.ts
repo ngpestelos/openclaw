@@ -182,20 +182,6 @@ async function discoverChannelAddresses(params: {
       if (!route) {
         continue;
       }
-      if (
-        !isConversationRouteEligibleForAgent({
-          config: params.config,
-          agentId: params.agentId,
-          conversation: {
-            channel: plugin.id,
-            accountId,
-            kind: route.peer.kind,
-            peerId: route.peer.id,
-          },
-        })
-      ) {
-        continue;
-      }
       const identity = buildConversationIdentity({
         channel: plugin.id,
         accountId,
@@ -209,9 +195,19 @@ async function discoverChannelAddresses(params: {
           : { nativeChannelId: route.peer.id }),
         ...(display ? { label: display } : {}),
       });
-      if (identity) {
-        identities.set(identity.conversationRef, identity);
+      if (!identity) {
+        continue;
       }
+      if (
+        !isConversationRouteEligibleForAgent({
+          config: params.config,
+          agentId: params.agentId,
+          conversation: identity,
+        })
+      ) {
+        continue;
+      }
+      identities.set(identity.conversationRef, identity);
     }
   }
   params.deps.registerConversationAddresses(params.scope, [...identities.values()]);

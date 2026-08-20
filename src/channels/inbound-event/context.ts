@@ -554,6 +554,7 @@ function buildChannelInboundEventContextValue(
     ReplyToIdFull: params.reply.replyToIdFull,
     ChatType: params.conversation.kind,
     ChatId: params.conversation.id,
+    ConversationRoutePeerId: params.conversation.routePeer?.id,
     ConversationLabel: params.conversation.label,
     GroupSubject: params.conversation.kind !== "direct" ? params.conversation.label : undefined,
     GroupSpace: params.conversation.spaceId,

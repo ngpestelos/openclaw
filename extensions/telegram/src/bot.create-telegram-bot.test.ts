@@ -3907,6 +3907,8 @@ describe("createTelegramBot", () => {
 
     expect(replySpy).toHaveBeenCalledTimes(1);
     const payload = requireValue(replySpy.mock.calls.at(0), "replySpy call")[0];
+    expect(payload.ChatId).toBe(String(chatId));
+    expect(payload.ConversationRoutePeerId).toBe(`${chatId}:direct-topic:77`);
     expect(payload.MessageThreadId).toBe(77);
     expect(payload.OriginatingTo).toBe(`telegram:${chatId}:direct-topic:77`);
     expect(payload.SessionKey).toContain("agent:channel-topic-agent:");

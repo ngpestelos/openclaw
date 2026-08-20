@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from "vitest";
 import { createDeferred } from "../../../test/helpers/promise.js";
-import { loadTranscriptEvents } from "../../config/sessions/session-accessor.js";
+import {
+  loadSessionEntryReadOnly,
+  loadTranscriptEvents,
+  replaceSessionEntry,
+} from "../../config/sessions/session-accessor.js";
+import type { InternalSessionEntry } from "../../config/sessions/types.js";
 import { createGatewaySession } from "../../gateway/session-create-service.js";
 import {
   interruptSessionWorkAdmissions,
@@ -14,6 +19,63 @@ import { withOpenClawTestState } from "../../test-utils/openclaw-test-state.js";
 import { createRuntimeAgent } from "./runtime-agent.js";
 
 describe("plugin runtime session creation", () => {
+  it("projects private session state and preserves it across same-generation writes", async () => {
+    await withOpenClawTestState({ label: "plugin-runtime-private-session-state" }, async () => {
+      const runtime = createRuntimeAgent();
+      const sessionKey = "agent:main:dashboard:private-session-state";
+      const storePath = runtime.session.resolveStorePath(undefined, { agentId: "main" });
+      const internalEntry: InternalSessionEntry = {
+        sessionId: "private-session-id",
+        lifecycleRevision: "private-lifecycle-revision",
+        updatedAt: 1,
+        conversationRouteContext: { guildId: "guild-a" },
+      };
+      await replaceSessionEntry({ storePath, sessionKey }, internalEntry);
+
+      const read = runtime.session.getSessionEntry({ storePath, sessionKey });
+      expect(read).not.toHaveProperty("conversationRouteContext");
+      expect(runtime.session.listSessionEntries({ storePath })[0]?.entry).not.toHaveProperty(
+        "conversationRouteContext",
+      );
+
+      const patched = await runtime.session.patchSessionEntry({
+        storePath,
+        sessionKey,
+        update: (entry, context) => {
+          expect(entry).not.toHaveProperty("conversationRouteContext");
+          expect(context.existingEntry).not.toHaveProperty("conversationRouteContext");
+          return { label: "patched" };
+        },
+      });
+      expect(patched).not.toHaveProperty("conversationRouteContext");
+      const updated = await runtime.session.updateSessionStoreEntry({
+        storePath,
+        sessionKey,
+        update: (entry) => {
+          expect(entry).not.toHaveProperty("conversationRouteContext");
+          return { displayName: "updated" };
+        },
+      });
+      expect(updated).not.toHaveProperty("conversationRouteContext");
+      await runtime.session.upsertSessionEntry({
+        storePath,
+        sessionKey,
+        entry: {
+          sessionId: internalEntry.sessionId,
+          lifecycleRevision: internalEntry.lifecycleRevision,
+          updatedAt: 2,
+          label: "replaced",
+        },
+      });
+
+      expect(loadSessionEntryReadOnly({ storePath, sessionKey })).toMatchObject({
+        lifecycleRevision: "private-lifecycle-revision",
+        conversationRouteContext: { guildId: "guild-a" },
+        label: "replaced",
+      });
+    });
+  });
+
   it("resolves synchronous session catalog targets through agent model policy", () => {
     const runtime = createRuntimeAgent();
     const config = {

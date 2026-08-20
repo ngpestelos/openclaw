@@ -37,4 +37,13 @@ describe("conversationRouteContextFromMsgContext", () => {
       }),
     ).toBeUndefined();
   });
+
+  it("captures the channel owner's canonical peer independently of route scope", () => {
+    expect(
+      conversationRouteContextFromMsgContext({
+        OriginatingChannel: "feishu",
+        ConversationRoutePeerId: "oc_room:topic:om_root:sender:ou_sender",
+      }),
+    ).toEqual({ peerId: "oc_room:topic:om_root:sender:ou_sender" });
+  });
 });

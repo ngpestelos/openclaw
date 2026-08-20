@@ -505,6 +505,45 @@ describe("initSessionState guarded initialization", () => {
     });
   });
 
+  it("preserves route facts when a partial admitted turn crosses a daily rollover", async () => {
+    const storePath = await createStorePath("openclaw-session-route-context-rollover-");
+    const sessionKey = "agent:main:msteams:channel:ops-rollover";
+    const staleStartedAt = Date.now() - 48 * 60 * 60 * 1000;
+    await upsertSessionEntryCore(
+      { storePath, sessionKey },
+      {
+        sessionId: "session-before-route-rollover",
+        lifecycleRevision: "lifecycle-before-route-rollover",
+        updatedAt: staleStartedAt,
+        sessionStartedAt: staleStartedAt,
+        lastInteractionAt: staleStartedAt,
+        conversationRouteContext: { teamId: "team-a" },
+      },
+    );
+
+    const reflected = await initSessionState({
+      ctx: {
+        Body: "internal reflection",
+        ChatType: "channel",
+        From: "msteams:system:ops",
+        To: "conversation:ops",
+        OriginatingChannel: "msteams",
+        SessionKey: sessionKey,
+        InboundAccessAuthorized: true,
+        ConversationRouteContextAuthoritative: false,
+      },
+      cfg: {
+        session: { store: storePath, reset: { mode: "daily", atHour: 4 } },
+      } as OpenClawConfig,
+    });
+
+    expect(reflected.isNewSession).toBe(true);
+    expect(reflected.sessionEntry.conversationRouteContext).toEqual({ teamId: "team-a" });
+    expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toEqual({
+      teamId: "team-a",
+    });
+  });
+
   it("clears stale route facts for a newly admitted contextless conversation", async () => {
     const storePath = await createStorePath("openclaw-session-route-context-clear-");
     const sessionKey = "agent:main:main";

@@ -16,7 +16,7 @@ import {
 import type { DeliveryContext } from "../../utils/delivery-context.types.js";
 import { resolveGroupSessionKey } from "./group.js";
 import { deriveSessionOrigin } from "./metadata.js";
-import type { GroupKeyResolution, SessionEntry } from "./types.js";
+import type { GroupKeyResolution, InternalSessionEntry, SessionEntry } from "./types.js";
 
 export type ConversationKind = "channel" | "direct" | "group";
 
@@ -154,7 +154,7 @@ export function buildConversationIdentity(params: {
 
 /** Derives a transport address from the canonical route snapshot persisted on a session. */
 export function conversationIdentityFromSessionEntry(
-  entry: SessionEntry,
+  entry: InternalSessionEntry,
 ): ConversationIdentity | null {
   const deliveryContext = deliveryContextFromSession(entry);
   const origin = sessionDeliveryOrigin(entry);
@@ -179,7 +179,7 @@ export function conversationIdentityFromSessionEntry(
     accountId: routeOwnsTarget ? deliveryContext?.accountId : origin?.accountId,
     kind,
     // Native ids remain descriptive metadata and cannot redirect a stored conversation ref.
-    peerId: pairedOriginPeerId ?? deliveryTarget,
+    peerId: entry.conversationRouteContext?.peerId ?? pairedOriginPeerId ?? deliveryTarget,
     deliveryTarget,
     threadId: routeOwnsTarget ? deliveryContext?.threadId : origin?.threadId,
     nativeChannelId: origin?.nativeChannelId,
@@ -229,7 +229,8 @@ export function conversationIdentityFromMsgContext(params: {
       ? (route?.accountId ?? params.ctx.AccountId)
       : (deliveryContext?.accountId ?? route?.accountId ?? params.ctx.AccountId),
     kind,
-    peerId: deliveryTarget,
+    // A channel may route on a more-specific peer than its transport delivery target.
+    peerId: normalizeText(params.ctx.ConversationRoutePeerId) ?? deliveryTarget,
     deliveryTarget,
     threadId: useDirectIngressTarget
       ? (route?.threadId ?? params.ctx.MessageThreadId)

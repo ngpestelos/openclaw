@@ -926,13 +926,15 @@ async function initSessionStateAttemptLocked(
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };
   }
-  if (
-    !isSystemEvent &&
-    sessionCtxForState.InboundAccessAuthorized === true &&
-    sessionCtxForState.ConversationRouteContextAuthoritative !== false
-  ) {
-    sessionEntry.conversationRouteContext =
-      conversationRouteContextFromMsgContext(sessionCtxForState);
+  if (!isSystemEvent && sessionCtxForState.InboundAccessAuthorized === true) {
+    if (sessionCtxForState.ConversationRouteContextAuthoritative === false) {
+      // Partial synthetic turns reuse the existing conversation but cannot re-attest its route
+      // facts. Keep those facts even when an idle/daily rollover rotates the session generation.
+      sessionEntry.conversationRouteContext = entry?.conversationRouteContext;
+    } else {
+      sessionEntry.conversationRouteContext =
+        conversationRouteContextFromMsgContext(sessionCtxForState);
+    }
   }
   if (isSystemEvent && !isThread) {
     sessionEntry = {

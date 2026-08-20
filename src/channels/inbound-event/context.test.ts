@@ -131,6 +131,7 @@ describe("buildChannelInboundEventContext", () => {
         label: "Room One",
         spaceId: "workspace",
         threadId: "thread-1",
+        routePeer: { kind: "group", id: "room-1:topic:thread-1" },
         avatar: "/media/inbound/conversation-avatar.png",
       },
       route: {
@@ -240,6 +241,7 @@ describe("buildChannelInboundEventContext", () => {
       ],
       ChatType: "group",
       ChatId: "room-1",
+      ConversationRoutePeerId: "room-1:topic:thread-1",
       ConversationLabel: "Room One",
       GroupSubject: "Room One",
       GroupSpace: "workspace",

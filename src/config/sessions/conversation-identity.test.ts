@@ -209,6 +209,7 @@ describe("conversation identity", () => {
       ctx: {
         Provider: "reef",
         ChatType: "direct",
+        ChatId: "transport-room-a",
         From: "reef:peer-b",
         OriginatingTo: "reef:self",
         NativeDirectUserId: "peer-a",
@@ -223,6 +224,59 @@ describe("conversation identity", () => {
     expect(identity?.conversationRef).toBe(
       conversationIdentityFromSessionEntry(directEntry("peer-b"))?.conversationRef,
     );
+  });
+
+  it("keeps a canonical route peer separate from its delivery target", () => {
+    const identity = conversationIdentityFromMsgContext({
+      ctx: {
+        Provider: "feishu",
+        AccountId: "default",
+        ChatType: "group",
+        ChatId: "oc_room",
+        ConversationRoutePeerId: "oc_room:topic:om_root:sender:ou_sender",
+        From: "feishu:ou_sender",
+        To: "chat:oc_room",
+        OriginatingTo: "chat:oc_room",
+        NativeChannelId: "oc_room",
+        MessageThreadId: "om_root",
+      },
+    });
+
+    expect(identity).toMatchObject({
+      peerId: "oc_room:topic:om_root:sender:ou_sender",
+      deliveryTarget: "chat:oc_room",
+      nativeChannelId: "oc_room",
+      threadId: "om_root",
+    });
+
+    const persisted = conversationIdentityFromCanonicalSessionEntry({
+      sessionId: "session-scoped-peer",
+      updatedAt: 1,
+      chatType: "group",
+      delivery: {
+        kind: "external",
+        route: {
+          channel: "feishu",
+          accountId: "default",
+          target: { to: "chat:oc_room" },
+          thread: { id: "om_root" },
+        },
+        context: {
+          channel: "feishu",
+          to: "chat:oc_room",
+          accountId: "default",
+          threadId: "om_root",
+        },
+        origin: {
+          provider: "feishu",
+          nativeChannelId: "oc_room",
+          threadId: "om_root",
+        },
+      },
+      conversationRouteContext: { peerId: "oc_room:topic:om_root:sender:ou_sender" },
+    });
+    expect(persisted?.conversationRef).toBe(identity?.conversationRef);
+    expect(persisted?.peerId).toBe("oc_room:topic:om_root:sender:ou_sender");
   });
 
   it.each([

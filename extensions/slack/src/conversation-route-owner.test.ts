@@ -76,4 +76,59 @@ describe("inspectSlackConversationRouteOwner", () => {
       expect.objectContaining({ conversationId: "user:user-1" }),
     );
   });
+
+  it("normalizes persisted and directory Enterprise peers exactly once", () => {
+    releaseInstallation?.();
+    releaseInstallation = registerSlackInstallationState("default", "enterprise").release;
+    const cfg = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: {
+            channel: "slack",
+            accountId: "default",
+            peer: { kind: "channel" as const, id: "team:T123:channel:C456" },
+          },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "slack", accountId: "default" },
+        },
+      ],
+    };
+
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg,
+        accountId: "default",
+        conversation: {
+          kind: "channel",
+          peerId: "team:T123:channel:C456",
+          nativeChannelId: "C456",
+          context: { teamId: "T123" },
+        },
+      }),
+    ).toEqual({ kind: "agent", agentId: "finance" });
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg,
+        accountId: "default",
+        conversation: { kind: "channel", peerId: "team:T123:channel:C456" },
+      }),
+    ).toEqual({ kind: "agent", agentId: "finance" });
+    expect(
+      inspectSlackConversationRouteOwner({
+        cfg,
+        accountId: "default",
+        conversation: {
+          kind: "channel",
+          peerId: "team:T123:channel:C456",
+          context: { teamId: "T999" },
+        },
+      }),
+    ).toBeNull();
+  });
 });

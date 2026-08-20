@@ -384,6 +384,8 @@ export type MsgContext = Partial<CanonicalInboundText> & {
   ChannelContext?: PluginHookChannelContext;
   /** Provider-native chat/conversation id used by channel plugins that expose `chat_id`. */
   ChatId?: string;
+  /** Channel-owned canonical route peer when it differs from the transport conversation id. */
+  ConversationRoutePeerId?: string;
   /** Stable provider-native direct-peer id when a DM room/user mapping must survive later writes. */
   NativeDirectUserId?: string;
   /** Telegram forum supergroup marker. */

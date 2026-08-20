@@ -62,6 +62,7 @@ import {
   resolveTelegramGroupPromptSettings,
 } from "./group-config-helpers.js";
 import { resolveTelegramCommandIngressAuthorization } from "./ingress.js";
+import { buildTelegramConversationId as topicId } from "./topic-conversation.js";
 import { getTopicName, resolveTopicNameCacheScope } from "./topic-name-cache.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
@@ -482,7 +483,6 @@ export async function prepareTelegramCommandDispatch(
     runtimeTelegramCfg,
     turnSettings,
     ...auth,
-    threadSpec: auth.threadSpec,
     threadParams: buildTelegramThreadParams(auth.threadSpec),
     route,
     mediaLocalRoots,
@@ -546,6 +546,7 @@ export async function dispatchTelegramBuiltinTurn(params: {
       : `telegram:${dispatch.chatId}`,
     To: `slash:${dispatch.senderId || dispatch.chatId}`,
     ChatType: dispatch.isGroup ? "group" : "direct",
+    ConversationRoutePeerId: topicId({ chatId: dispatch.chatId, thread: dispatch.threadSpec }),
     ConversationToolPolicy: dispatch.isGroup
       ? undefined
       : resolveTelegramDirectToolPolicy({

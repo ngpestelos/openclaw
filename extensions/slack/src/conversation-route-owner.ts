@@ -9,6 +9,7 @@ import {
   qualifySlackConversationId,
   qualifySlackRoutePeerId,
 } from "./monitor/workspace-routing.js";
+import { parseSlackTarget } from "./targets.js";
 
 export function inspectSlackConversationRouteOwner(params: {
   cfg: OpenClawConfig;
@@ -17,31 +18,54 @@ export function inspectSlackConversationRouteOwner(params: {
     kind: "direct" | "group" | "channel";
     peerId: string;
     threadId?: string;
+    nativeChannelId?: string;
     context?: { teamId?: string };
   };
 }) {
   const installationKind = getSlackInstallationKind(params.accountId);
-  const enterpriseScope =
-    installationKind === "enterprise" && params.conversation.context?.teamId
-      ? { teamId: params.conversation.context.teamId }
-      : undefined;
   const direct = params.conversation.kind === "direct";
+  const target = parseSlackTarget(params.conversation.peerId, {
+    defaultKind: direct ? "user" : "channel",
+  });
+  if (!target || target.kind !== (direct ? "user" : "channel")) {
+    return null;
+  }
+  const contextTeamId = params.conversation.context?.teamId?.trim();
+  if (
+    contextTeamId &&
+    target.teamId &&
+    contextTeamId.toLowerCase() !== target.teamId.toLowerCase()
+  ) {
+    return null;
+  }
+  const teamId = contextTeamId ?? target.teamId;
+  if (
+    !direct &&
+    params.conversation.nativeChannelId &&
+    params.conversation.nativeChannelId.toLowerCase() !== target.id.toLowerCase()
+  ) {
+    return null;
+  }
+  if (installationKind === "enterprise" && !teamId) {
+    return null;
+  }
+  const enterpriseScope = installationKind === "enterprise" && teamId ? { teamId } : undefined;
   const route = resolveAgentRoute({
     cfg: normalizeSlackRouteBindingConfig(params.cfg),
     channel: "slack",
     accountId: params.accountId,
-    teamId: params.conversation.context?.teamId,
+    teamId,
     peer: {
       kind: params.conversation.kind,
       id: qualifySlackRoutePeerId({
-        id: params.conversation.peerId,
+        id: target.id,
         kind: direct ? "user" : "channel",
         eventScope: enterpriseScope,
       }),
     },
   });
   const baseConversationId = qualifySlackConversationId(
-    direct ? `user:${params.conversation.peerId}` : params.conversation.peerId,
+    direct ? `user:${target.id}` : target.id,
     enterpriseScope,
   );
   const bindingRoute = resolveSlackConversationBindingRoute({

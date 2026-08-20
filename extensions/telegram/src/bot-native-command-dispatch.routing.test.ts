@@ -209,6 +209,10 @@ describe("Telegram native command dispatch routing", () => {
     expect(sessionMetaCall?.sessionKey).toBe("agent:zu:telegram:group:-1001234567890:topic:42");
     expect(sessionMetaCall?.ctx?.From).toBe("telegram:group:-1001234567890:topic:42");
     expect(sessionMetaCall?.ctx?.ChatType).toBe("group");
+    expect(sessionMetaCall?.ctx).toMatchObject({
+      ConversationRoutePeerId: "-1001234567890:topic:42",
+      ThreadParentId: "-1001234567890",
+    });
   });
 
   it("does not mark paired Telegram DM allowlist entries as native group command owners", async () => {

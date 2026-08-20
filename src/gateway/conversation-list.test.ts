@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ConversationIdentity } from "../config/sessions/conversation-identity.js";
 import type { ConversationRecord } from "../config/sessions/conversation-registry.js";
+import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
+import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { runGatewayConversationList } from "./conversation-list.js";
 
 function withScanDeps<
@@ -545,6 +547,69 @@ describe("runGatewayConversationList", () => {
         nativeChannelId: channelId,
       }),
     ]);
+  });
+
+  it("checks a Matrix directory DM with its canonical peer and native room", async () => {
+    let discovered: ConversationIdentity[] = [];
+    const resolveConversationRouteOwner = vi.fn(() => ({
+      kind: "agent" as const,
+      agentId: "main",
+    }));
+    const plugin = {
+      ...createChannelTestPluginBase({ id: "matrix" }),
+      messaging: { resolveConversationRouteOwner },
+      directory: {
+        listGroups: async () => [{ kind: "group" as const, id: "!dm:example.org", name: "Alice" }],
+      },
+    };
+    setActivePluginRegistry(createTestRegistry([{ pluginId: "matrix", source: "test", plugin }]));
+    try {
+      const deps = {
+        resolveOutboundChannelPlugin: vi.fn(() => plugin),
+        resolveOutboundSessionRoute: vi.fn(async () => ({
+          sessionKey: "agent:main:matrix:direct:@alice:example.org",
+          baseSessionKey: "agent:main:matrix:direct:@alice:example.org",
+          peer: { kind: "channel" as const, id: "!dm:example.org" },
+          chatType: "direct" as const,
+          from: "matrix:@alice:example.org",
+          to: "room:!dm:example.org",
+        })),
+        registerConversationAddresses: vi.fn((_scope, identities) => {
+          discovered = [...identities];
+        }),
+        listConversations: vi.fn(() =>
+          discovered.map((identity) => ({
+            conversationRef: identity.conversationRef,
+            channel: identity.channel,
+            accountId: identity.accountId,
+            kind: identity.kind,
+            peerId: identity.peerId,
+            nativeChannelId: identity.nativeChannelId,
+            target: identity.deliveryTarget,
+            firstSeenAt: 1,
+            lastSeenAt: 1,
+          })),
+        ),
+      };
+
+      const result = await runGatewayConversationList(
+        { config: {}, agentId: "main", channel: "matrix", limit: 10 },
+        withScanDeps(deps) as never,
+      );
+
+      expect(resolveConversationRouteOwner).toHaveBeenCalledWith({
+        cfg: {},
+        accountId: "default",
+        conversation: {
+          kind: "direct",
+          peerId: "@alice:example.org",
+          nativeChannelId: "!dm:example.org",
+        },
+      });
+      expect(result.conversations).toHaveLength(1);
+    } finally {
+      resetPluginRuntimeStateForTest();
+    }
   });
 
   it("merges live directory adapters with config-backed entries", async () => {

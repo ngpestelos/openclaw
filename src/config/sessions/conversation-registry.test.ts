@@ -114,6 +114,44 @@ describe("conversation registry", () => {
     );
   });
 
+  it("persists a scoped route peer separately from its delivery target", async () => {
+    await upsertSessionEntry(
+      {
+        agentId: "main",
+        sessionKey: "agent:main:feishu:group:oc-room-topic-sender",
+        storePath,
+      },
+      {
+        sessionId: "feishu-topic-sender-session",
+        updatedAt: 100,
+        chatType: "group",
+        deliveryContext: {
+          channel: "feishu",
+          accountId: "default",
+          to: "chat:oc_room",
+          threadId: "om_root",
+        },
+        origin: { provider: "feishu", nativeChannelId: "oc_room", threadId: "om_root" },
+        conversationRouteContext: {
+          peerId: "oc_room:topic:om_root:sender:ou_sender",
+          parentPeerId: "oc_room",
+        },
+      },
+    );
+
+    expect(listConversations({ agentId: "main", storePath }, { channel: "feishu" })).toEqual([
+      expect.objectContaining({
+        peerId: "oc_room:topic:om_root:sender:ou_sender",
+        target: "chat:oc_room",
+        nativeChannelId: "oc_room",
+        routeContext: {
+          peerId: "oc_room:topic:om_root:sender:ou_sender",
+          parentPeerId: "oc_room",
+        },
+      }),
+    ]);
+  });
+
   it("keeps route context scoped to each agent in a shared store", async () => {
     const sharedStorePath = path.join(tempDir, "shared.sqlite");
     for (const [agentId, role] of [

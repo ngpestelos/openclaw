@@ -717,7 +717,8 @@ describe("handleFeishuMessage ACP routing", () => {
 
     expect(mockBuildChannelInboundEventContext).toHaveBeenCalledWith(
       expect.objectContaining({
-        ChatId: "oc_group_chat:topic:om_topic_root:sender:ou_sender_1",
+        ChatId: "oc_group_chat",
+        ConversationRoutePeerId: "oc_group_chat:topic:om_topic_root:sender:ou_sender_1",
         NativeChannelId: "oc_group_chat",
         ThreadParentId: "oc_group_chat",
         To: "chat:oc_group_chat",
