@@ -10,6 +10,7 @@ export function inspectDiscordConversationRouteOwner(params: {
   conversation: {
     kind: "direct" | "group" | "channel";
     peerId: string;
+    threadId?: string;
     nativeChannelId?: string;
     context?: {
       parentPeerId?: string;
@@ -20,12 +21,15 @@ export function inspectDiscordConversationRouteOwner(params: {
 }) {
   const direct = params.conversation.kind === "direct";
   const nativeConversationId = params.conversation.nativeChannelId ?? params.conversation.peerId;
+  const threadConversationId = direct ? undefined : params.conversation.threadId;
   const runtimeConversationId =
+    threadConversationId ??
     resolveDiscordConversationIdentity({
       isDirectMessage: direct,
       userId: direct ? params.conversation.peerId : undefined,
       channelId: direct ? undefined : nativeConversationId,
-    }) ?? nativeConversationId;
+    }) ??
+    nativeConversationId;
   const route = resolveDiscordConversationRoute({
     cfg: params.cfg,
     accountId: params.accountId,
@@ -39,7 +43,7 @@ export function inspectDiscordConversationRouteOwner(params: {
     route,
     accountId: params.accountId,
     runtimeConversationId,
-    configuredConversationId: nativeConversationId,
+    configuredConversationId: threadConversationId ?? nativeConversationId,
     parentConversationId: params.conversation.context?.parentPeerId,
     touchBinding: false,
   });

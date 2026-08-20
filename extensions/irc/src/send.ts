@@ -95,12 +95,15 @@ export async function sendMessageIrc(
         connectTimeoutMs: 12000,
       }),
     );
-    if (target.startsWith("#") || target.startsWith("&")) {
-      transient.join(target);
+    try {
+      await opts.onPlatformSendDispatch?.();
+      if (target.startsWith("#") || target.startsWith("&")) {
+        transient.join(target);
+      }
+      transient.sendPrivmsg(target, payload);
+    } finally {
+      transient.quit("sent");
     }
-    await opts.onPlatformSendDispatch?.();
-    transient.sendPrivmsg(target, payload);
-    transient.quit("sent");
   }
 
   recordIrcOutboundActivity(account.accountId);

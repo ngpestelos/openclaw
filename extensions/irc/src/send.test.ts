@@ -327,6 +327,39 @@ describe("sendMessageIrc cfg threading", () => {
     expect(hoisted.record).not.toHaveBeenCalled();
   });
 
+  it("authorizes before joining and closes a transient client after rejection", async () => {
+    const providedCfg = {
+      channels: {
+        irc: {
+          host: "irc.example.com",
+          nick: "openclaw",
+        },
+      },
+    } as unknown as CoreConfig;
+    const client = {
+      isReady: vi.fn(() => true),
+      join: vi.fn(),
+      sendPrivmsg: vi.fn(),
+      quit: vi.fn(),
+    } as unknown as IrcClient;
+    hoisted.connectIrcClient.mockResolvedValue(client);
+    const rejection = new Error("route owner changed");
+
+    await expect(
+      sendMessageIrc("#room", "hello", {
+        cfg: providedCfg,
+        onPlatformSendDispatch: async () => {
+          throw rejection;
+        },
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(client.join).not.toHaveBeenCalled();
+    expect(client.sendPrivmsg).not.toHaveBeenCalled();
+    expect(client.quit).toHaveBeenCalledWith("sent");
+    expect(hoisted.record).not.toHaveBeenCalled();
+  });
+
   it("declares message adapter durable text, media, and reply with receipt proofs", async () => {
     const providedCfg = {
       channels: {

@@ -82,6 +82,48 @@ describe("inspectDiscordConversationRouteOwner", () => {
     expect(touch).not.toHaveBeenCalled();
   });
 
+  it("uses the raw thread id and parent for thread binding inspection", () => {
+    const resolveByConversation = vi.fn((conversation) =>
+      conversation.conversationId === "thread-1" &&
+      conversation.parentConversationId === "channel-1"
+        ? {
+            bindingId: "binding-thread",
+            targetSessionKey: "agent:finance:bound",
+            targetKind: "session" as const,
+            conversation,
+            status: "active" as const,
+            boundAt: 1,
+          }
+        : null,
+    );
+    registerSessionBindingAdapter({
+      channel: "discord",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation,
+    });
+
+    expect(
+      inspectDiscordConversationRouteOwner({
+        cfg: {},
+        accountId: "default",
+        conversation: {
+          kind: "channel",
+          peerId: "thread-1",
+          threadId: "thread-1",
+          nativeChannelId: "thread-1",
+          context: { parentPeerId: "channel-1" },
+        },
+      }),
+    ).toEqual({ kind: "agent", agentId: "finance" });
+    expect(resolveByConversation).toHaveBeenCalledWith({
+      channel: "discord",
+      accountId: "default",
+      conversationId: "thread-1",
+      parentConversationId: "channel-1",
+    });
+  });
+
   it("preserves plugin ownership without trusting an agent-shaped target", () => {
     registerSessionBindingAdapter({
       channel: "discord",
