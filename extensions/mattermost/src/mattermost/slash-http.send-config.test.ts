@@ -281,6 +281,16 @@ describe("slash-http cfg threading", () => {
 
   it("carries the routed team into slash-command session context", async () => {
     mockState.resolveMattermostModelPickerEntry.mockReturnValueOnce(undefined as never);
+    mockState.authorizeMattermostCommandInvocation.mockReturnValueOnce({
+      ok: true,
+      commandAuthorized: true,
+      channelInfo: { id: "chan-1", type: "D", name: "", display_name: "" },
+      kind: "direct",
+      chatType: "direct",
+      channelName: "",
+      channelDisplay: "",
+      roomLabel: "DM",
+    });
     const handler = createSlashCommandHttpHandler({
       account: accountFixture,
       cfg: {} as OpenClawConfig,
@@ -303,7 +313,7 @@ describe("slash-http cfg threading", () => {
     await vi.waitFor(() => {
       expect(mockState.dispatchInbound).toHaveBeenCalledWith(
         expect.objectContaining({
-          ctxPayload: expect.objectContaining({ GroupSpace: "team-1" }),
+          ctxPayload: expect.objectContaining({ ChatType: "direct", GroupSpace: "team-1" }),
         }),
       );
     });

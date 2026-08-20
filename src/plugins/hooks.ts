@@ -27,6 +27,7 @@ import {
   isHookDecision,
 } from "./hook-decision-types.js";
 import { cloneHookIsolationValue, HookIsolationError } from "./hook-isolation.js";
+import { resolveTargetedPluginHookAvailability } from "./hook-registry-query.js";
 import type { GlobalHookRunnerRegistry, HookRunnerRegistry } from "./hook-registry.types.js";
 import type {
   PluginHookAfterCompactionEvent,
@@ -860,17 +861,14 @@ export function createHookRunner(
     | { status: "declined" }
     | { status: "error"; error: string }
   > {
-    const pluginLoaded = registry.plugins.some(
-      (plugin) => plugin.id === pluginId && plugin.status === "loaded",
-    );
-    if (!pluginLoaded) {
+    const availability = resolveTargetedPluginHookAvailability(registry, hookName, pluginId);
+    if (availability === "missing-plugin") {
       return { status: "missing_plugin" };
     }
-
-    const hooks = getHooksForNameAndPlugin(registry, hookName, pluginId);
-    if (hooks.length === 0) {
+    if (availability === "no-handler") {
       return { status: "no_handler" };
     }
+    const hooks = getHooksForNameAndPlugin(registry, hookName, pluginId);
 
     logger?.debug?.(
       `[hooks] running ${hookName} for ${pluginId} (${hooks.length} handlers, targeted outcome)`,

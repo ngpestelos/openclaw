@@ -1,10 +1,15 @@
 import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
 import { AgentSelectionRequiredError } from "../agents/agent-scope-config.js";
 import { normalizeChatType } from "../channels/chat-type.js";
+import {
+  resolveConfiguredBindingRoute,
+  resolveRuntimeConversationBindingRoute,
+} from "../channels/plugins/binding-routing.js";
 import { getLoadedChannelPlugin, normalizeChannelId } from "../channels/plugins/index.js";
 import { listRouteBindings } from "../config/bindings.js";
 import type { ConversationRecord } from "../config/sessions/conversation-registry.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { hasGlobalPluginHook } from "../plugins/hook-runner-global.js";
 import { normalizeAccountId } from "../routing/account-id.js";
 import { normalizeRouteBindingId } from "../routing/binding-scope.js";
 import { peerKindMatches } from "../routing/peer-kind-match.js";
@@ -23,13 +28,16 @@ type ConversationRouteCandidate = Pick<
   | "threadId"
 >;
 
-type ResolvedRouteOwner = Pick<ResolvedAgentRoute, "agentId" | "matchedBy">;
+type OptionalConversationRouteFacts = Partial<Pick<ConversationRecord, "nativeChannelId">>;
+
+type ConversationRouteCandidateWithFacts = ConversationRouteCandidate &
+  OptionalConversationRouteFacts;
 
 type PluginRouteOwnerResolution = { handled: false } | { handled: true; agentId?: string };
 
 function resolvePluginRouteOwner(
   config: OpenClawConfig,
-  conversation: ConversationRouteCandidate,
+  conversation: ConversationRouteCandidateWithFacts,
 ): PluginRouteOwnerResolution {
   const channelId = normalizeChannelId(conversation.channel);
   const resolver = channelId
@@ -46,13 +54,25 @@ function resolvePluginRouteOwner(
         kind: conversation.kind,
         peerId: conversation.peerId,
         ...(conversation.threadId ? { threadId: conversation.threadId } : {}),
+        ...(conversation.nativeChannelId ? { nativeChannelId: conversation.nativeChannelId } : {}),
         ...(conversation.routeContext ? { context: conversation.routeContext } : {}),
       },
     });
     if (route === undefined) {
       return { handled: false };
     }
-    return { handled: true, ...(route ? { agentId: normalizeAgentId(route.agentId) } : {}) };
+    if (!route) {
+      return { handled: true };
+    }
+    if (route.kind === "plugin") {
+      return {
+        handled: true,
+        ...(hasGlobalPluginHook(route.pluginId, "inbound_claim")
+          ? {}
+          : { agentId: normalizeAgentId(route.fallbackAgentId) }),
+      };
+    }
+    return { handled: true, agentId: normalizeAgentId(route.agentId) };
   } catch (error) {
     if (error instanceof AgentSelectionRequiredError) {
       return { handled: true };
@@ -85,7 +105,7 @@ function resolveRouteOwner(
   config: OpenClawConfig,
   conversation: ConversationRouteCandidate,
   context?: NonNullable<ConversationRouteCandidate["routeContext"]>,
-): ResolvedRouteOwner | undefined {
+): ResolvedAgentRoute | undefined {
   try {
     const route = resolveAgentRoute({
       cfg: config,
@@ -99,13 +119,43 @@ function resolveRouteOwner(
       ...(context?.teamId ? { teamId: context.teamId } : {}),
       ...(context?.memberRoleIds ? { memberRoleIds: context.memberRoleIds } : {}),
     });
-    return { agentId: normalizeAgentId(route.agentId), matchedBy: route.matchedBy };
+    return { ...route, agentId: normalizeAgentId(route.agentId) };
   } catch (error) {
     if (error instanceof AgentSelectionRequiredError) {
       return undefined;
     }
     throw error;
   }
+}
+
+function resolveGenericRouteOwner(
+  config: OpenClawConfig,
+  conversation: ConversationRouteCandidate,
+  route: ResolvedAgentRoute,
+  context?: NonNullable<ConversationRouteCandidate["routeContext"]>,
+): { agentId?: string } {
+  const bindingConversation = {
+    channel: conversation.channel,
+    accountId: normalizeAccountId(conversation.accountId),
+    conversationId: conversation.peerId,
+    ...(context?.parentPeerId ? { parentConversationId: context.parentPeerId } : {}),
+  };
+  const configuredRoute = resolveConfiguredBindingRoute({
+    cfg: config,
+    route,
+    conversation: bindingConversation,
+  });
+  const runtimeRoute = resolveRuntimeConversationBindingRoute({
+    route: configuredRoute.route,
+    touchBinding: false,
+    conversation: bindingConversation,
+  });
+  if (runtimeRoute.pluginId) {
+    return hasGlobalPluginHook(runtimeRoute.pluginId, "inbound_claim")
+      ? {}
+      : { agentId: normalizeAgentId(runtimeRoute.route.agentId) };
+  }
+  return { agentId: normalizeAgentId(runtimeRoute.route.agentId) };
 }
 
 function hasUnrecordedContextualBinding(
@@ -141,7 +191,7 @@ function hasUnrecordedContextualBinding(
 export function isConversationRouteEligibleForAgent(params: {
   config: OpenClawConfig;
   agentId: string;
-  conversation: ConversationRouteCandidate;
+  conversation: ConversationRouteCandidateWithFacts;
 }): boolean {
   const agentId = normalizeAgentId(params.agentId);
   const conversation = params.conversation;
@@ -150,16 +200,22 @@ export function isConversationRouteEligibleForAgent(params: {
     return pluginRoute.agentId === agentId;
   }
   if (conversation.observedFromSession && conversation.routeContext) {
-    return (
-      resolveRouteOwner(params.config, conversation, conversation.routeContext)?.agentId === agentId
-    );
+    const route = resolveRouteOwner(params.config, conversation, conversation.routeContext);
+    return route
+      ? resolveGenericRouteOwner(params.config, conversation, route, conversation.routeContext)
+          .agentId === agentId
+      : false;
   }
   const route = resolveRouteOwner(params.config, conversation);
-  if (route?.agentId !== agentId) {
+  if (!route) {
+    return false;
+  }
+  const resolvedOwner = resolveGenericRouteOwner(params.config, conversation, route).agentId;
+  if (resolvedOwner !== agentId) {
     return false;
   }
   if (route.matchedBy === "binding.peer" || route.matchedBy === "binding.peer.wildcard") {
     return true;
   }
-  return !hasUnrecordedContextualBinding(params.config, conversation, route.agentId);
+  return !hasUnrecordedContextualBinding(params.config, conversation, resolvedOwner);
 }

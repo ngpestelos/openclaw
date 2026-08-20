@@ -38,7 +38,7 @@ type TelegramConversationBindingMode =
       kind: "runtime-bound";
       sessionKey: string;
     }
-  | { kind: "plugin-owned-runtime" };
+  | { kind: "plugin-owned-runtime"; pluginId: string };
 
 type TelegramConversationRouteResult = {
   route: TelegramResolvedRoute;
@@ -157,7 +157,7 @@ function resolveTelegramConversationRouteWithRuntimePolicy(
   if (runtimeRoute.bindingRecord) {
     bindingMode = runtimeRoute.boundSessionKey
       ? { kind: "runtime-bound", sessionKey: runtimeRoute.boundSessionKey }
-      : { kind: "plugin-owned-runtime" };
+      : { kind: "plugin-owned-runtime", pluginId: runtimeRoute.pluginId ?? "" };
     logVerbose(
       runtimeRoute.boundSessionKey
         ? `telegram: routed via bound conversation ${runtimeBindingConversationId} -> ${runtimeRoute.boundSessionKey}`

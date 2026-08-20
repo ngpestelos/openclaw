@@ -494,7 +494,7 @@ export type ChannelMessagingAdapter = {
    * targets before plugin-specific normalization.
    */
   targetPrefixes?: readonly string[];
-  /** Re-resolve the current owner when channel config can override generic bindings. */
+  /** Re-resolve the current owner when channel behavior exceeds generic bindings. */
   resolveConversationRouteOwner?: (params: {
     cfg: OpenClawConfig;
     accountId: string;
@@ -502,6 +502,7 @@ export type ChannelMessagingAdapter = {
       kind: "direct" | "group" | "channel";
       peerId: string;
       threadId?: string;
+      nativeChannelId?: string;
       context?: {
         parentPeerId?: string;
         guildId?: string;
@@ -509,7 +510,11 @@ export type ChannelMessagingAdapter = {
         memberRoleIds?: string[];
       };
     };
-  }) => { agentId: string } | null | undefined;
+  }) =>
+    | { kind: "agent"; agentId: string }
+    | { kind: "plugin"; pluginId: string; fallbackAgentId: string }
+    | null
+    | undefined;
   /** DM targets rebuilt from session keys require an explicit `user:` kind prefix. */
   directTargetStyle?: "user-prefixed";
   /** Equality rule for ids carried by prefixed outbound targets. */

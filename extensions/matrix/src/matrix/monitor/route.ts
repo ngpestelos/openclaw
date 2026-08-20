@@ -88,7 +88,7 @@ export function resolveMatrixInboundRoute(params: {
       route: {
         ...baseRoute,
         sessionKey: boundSessionKey,
-        agentId: resolveAgentIdFromSessionKey(boundSessionKey) || baseRoute.agentId,
+        agentId: resolveAgentIdFromSessionKey(boundSessionKey, baseRoute.agentId),
         lastRoutePolicy: deriveLastRoutePolicy({
           sessionKey: boundSessionKey,
           mainSessionKey: baseRoute.mainSessionKey,
@@ -168,13 +168,13 @@ export function resolveMatrixInboundRoute(params: {
         }),
       },
       configuredBinding,
-      runtimeBindingId: null,
+      runtimeBindingId: runtimeBinding?.bindingId ?? null,
     };
   }
 
   return {
     route: routeWithDmScope,
     configuredBinding,
-    runtimeBindingId: null,
+    runtimeBindingId: runtimeBinding?.bindingId ?? null,
   };
 }

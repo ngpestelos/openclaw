@@ -45,7 +45,7 @@ export function inspectTelegramConversationRouteOwner(params: {
     peerId: string;
     threadId?: string;
   };
-}): { agentId: string } | null {
+}) {
   const parsed = resolveInspectionThread(params.conversation);
   if (!parsed) {
     return null;
@@ -65,5 +65,14 @@ export function inspectTelegramConversationRouteOwner(params: {
     senderId: params.conversation.kind === "direct" ? parsed.chatId : undefined,
     topicAgentId: topicConfig?.agentId,
   });
-  return { agentId: result.route.agentId };
+  if (result.bindingMode.kind !== "plugin-owned-runtime") {
+    return { kind: "agent" as const, agentId: result.route.agentId };
+  }
+  return result.bindingMode.pluginId
+    ? {
+        kind: "plugin" as const,
+        pluginId: result.bindingMode.pluginId,
+        fallbackAgentId: result.route.agentId,
+      }
+    : null;
 }

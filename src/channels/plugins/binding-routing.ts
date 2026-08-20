@@ -38,6 +38,7 @@ export type RuntimeConversationBindingRouteResult = {
   route: ResolvedAgentRoute;
   boundSessionKey?: string;
   boundAgentId?: string;
+  pluginId?: string;
 };
 
 type ConfiguredBindingRouteConversationInput =
@@ -65,16 +66,19 @@ function resolveConfiguredBindingConversationRef(
   };
 }
 
-function isPluginOwnedRuntimeBindingRecord(record: SessionBindingRecord | null): boolean {
+function resolvePluginOwnedRuntimeBindingPluginId(
+  record: SessionBindingRecord | null,
+): string | undefined {
   const metadata = record?.metadata;
   if (!metadata || typeof metadata !== "object") {
-    return false;
+    return undefined;
   }
-  return (
+  const pluginId = metadata.pluginId;
+  const isPluginOwned =
     metadata.pluginBindingOwner === "plugin" &&
-    typeof metadata.pluginId === "string" &&
-    typeof metadata.pluginRoot === "string"
-  );
+    typeof pluginId === "string" &&
+    typeof metadata.pluginRoot === "string";
+  return isPluginOwned ? pluginId.trim() || undefined : undefined;
 }
 
 /**
@@ -161,11 +165,13 @@ export function resolveRuntimeConversationBindingRoute(
   if (params.touchBinding !== false) {
     getSessionBindingService().touch(bindingRecord.bindingId);
   }
-  if (isPluginOwnedRuntimeBindingRecord(bindingRecord)) {
+  const pluginId = resolvePluginOwnedRuntimeBindingPluginId(bindingRecord);
+  if (pluginId) {
     // Plugin-owned binding records are observed but not route-rewritten by core; the owning
     // plugin is responsible for its runtime target handoff.
     return {
       bindingRecord,
+      pluginId,
       route: params.route,
     };
   }

@@ -689,6 +689,42 @@ describe("handleFeishuMessage ACP routing", () => {
     expect(mockTouchBinding).toHaveBeenCalledWith("default:oc_group_chat:topic:om_topic_root");
   });
 
+  it("records the canonical sender-scoped topic identity separately from delivery", async () => {
+    await dispatchMessage({
+      cfg: createFeishuTestConfig(
+        {
+          enabled: true,
+          allowFrom: ["ou_sender_1"],
+          groups: {
+            oc_group_chat: {
+              allow: true,
+              requireMention: false,
+              groupSessionScope: "group_topic_sender",
+            },
+          },
+        },
+        { session: { mainKey: "main", scope: "per-sender" } },
+      ),
+      event: createFeishuTestEvent({
+        messageId: "msg-topic-sender",
+        senderOpenId: "ou_sender_1",
+        chatId: "oc_group_chat",
+        chatType: "group",
+        text: "hello topic",
+        message: { root_id: "om_topic_root" },
+      }),
+    });
+
+    expect(mockBuildChannelInboundEventContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ChatId: "oc_group_chat:topic:om_topic_root:sender:ou_sender_1",
+        NativeChannelId: "oc_group_chat",
+        ThreadParentId: "oc_group_chat",
+        To: "chat:oc_group_chat",
+      }),
+    );
+  });
+
   it("records Feishu DM last-route updates on the resolved session", async () => {
     const runtime = createFeishuBotRuntime();
     const recordInboundSession = vi.fn(async () => undefined);

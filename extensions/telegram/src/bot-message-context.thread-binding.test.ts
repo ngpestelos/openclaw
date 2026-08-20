@@ -117,7 +117,7 @@ describe("buildTelegramMessageContext thread binding override", () => {
         accountId: "default",
         sessionKey: "plugin-binding:openclaw-codex-app-server:session-1",
         agentId: "main",
-        bindingMode: { kind: "plugin-owned-runtime" },
+        bindingMode: { kind: "plugin-owned-runtime", pluginId: "codex-app-server" },
       }),
     );
 

@@ -1423,8 +1423,9 @@ export async function handleFeishuMessage(params: {
         },
         conversation: {
           kind: isGroup ? "group" : "direct",
-          id: ctx.chatId,
+          id: peerId,
           nativeChannelId: ctx.chatId,
+          parentId: parentPeer?.id,
           label: isGroup && groupName && !isTopicSessionForThread ? groupName : undefined,
           threadId: ctx.rootId && isTopicSessionForThread ? ctx.rootId : undefined,
         },

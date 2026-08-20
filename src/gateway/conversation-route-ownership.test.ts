@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentBindingMatch } from "../config/types.agents.js";
+import {
+  registerSessionBindingAdapter,
+  testing as sessionBindingTesting,
+} from "../infra/outbound/session-binding-service.js";
+import {
+  initializeGlobalHookRunner,
+  resetGlobalHookRunner,
+} from "../plugins/hook-runner-global.js";
+import { createMockPluginRegistry } from "../plugins/hooks.test-helpers.js";
 import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
 import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
@@ -10,8 +19,16 @@ const fallbackBinding = {
   match: { channel: "reef", accountId: "default" },
 };
 
-beforeEach(() => resetPluginRuntimeStateForTest());
-afterEach(() => resetPluginRuntimeStateForTest());
+beforeEach(() => {
+  resetPluginRuntimeStateForTest();
+  resetGlobalHookRunner();
+  sessionBindingTesting.resetSessionBindingAdaptersForTests();
+});
+afterEach(() => {
+  resetPluginRuntimeStateForTest();
+  resetGlobalHookRunner();
+  sessionBindingTesting.resetSessionBindingAdaptersForTests();
+});
 
 describe("isConversationRouteEligibleForAgent", () => {
   it.each([
@@ -104,7 +121,11 @@ describe("isConversationRouteEligibleForAgent", () => {
   });
 
   it.each([
-    { name: "uses an exact plugin owner", owner: { agentId: "finance" }, expected: true },
+    {
+      name: "uses an exact plugin owner",
+      owner: { kind: "agent", agentId: "finance" },
+      expected: true,
+    },
     { name: "fails closed when the plugin recognizes no owner", owner: null, expected: false },
     { name: "falls back when the plugin declines", owner: undefined, expected: false },
   ] as const)("$name", ({ owner, expected }) => {
@@ -122,7 +143,7 @@ describe("isConversationRouteEligibleForAgent", () => {
       ]),
     );
     const config = {
-      agents: { entries: { main: {}, finance: {} } },
+      agents: { list: [{ id: "main" }, { id: "finance" }] },
       bindings: [
         {
           type: "route" as const,
@@ -156,6 +177,172 @@ describe("isConversationRouteEligibleForAgent", () => {
         threadId: "42",
       },
     });
+  });
+
+  it("replays configured conversation bindings before authorizing an agent", () => {
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "discord",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "discord" }),
+            bindings: {
+              compileConfiguredBinding: ({ conversationId }: { conversationId: string }) => ({
+                conversationId,
+              }),
+              matchInboundConversation: ({
+                compiledBinding,
+                conversationId,
+              }: {
+                compiledBinding: { conversationId: string };
+                conversationId: string;
+              }) => (compiledBinding.conversationId === conversationId ? { conversationId } : null),
+            },
+          },
+        },
+      ]),
+    );
+    const config = {
+      agents: { list: [{ id: "main" }, { id: "finance" }] },
+      bindings: [
+        {
+          type: "acp" as const,
+          agentId: "finance",
+          match: {
+            channel: "discord",
+            accountId: "default",
+            peer: { kind: "direct" as const, id: "molty" },
+          },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "discord", accountId: "default" },
+        },
+      ],
+    };
+    const conversation = {
+      channel: "discord",
+      accountId: "default",
+      kind: "direct" as const,
+      peerId: "molty",
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "finance", conversation })).toBe(
+      true,
+    );
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+      false,
+    );
+  });
+
+  it("replays runtime conversation bindings without refreshing liveness", () => {
+    const touch = vi.fn();
+    registerSessionBindingAdapter({
+      channel: "reef",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => ({
+        bindingId: "binding-runtime",
+        targetSessionKey: "agent:finance:bound",
+        targetKind: "session",
+        conversation: { channel: "reef", accountId: "default", conversationId: "molty" },
+        status: "active",
+        boundAt: 1,
+      }),
+      touch,
+    });
+    const conversation = {
+      channel: "reef",
+      accountId: "default",
+      kind: "direct" as const,
+      peerId: "molty",
+    };
+
+    expect(
+      isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
+    ).toBe(true);
+    expect(isConversationRouteEligibleForAgent({ config: {}, agentId: "main", conversation })).toBe(
+      false,
+    );
+    expect(touch).not.toHaveBeenCalled();
+  });
+
+  it("denies every agent while an active plugin owns the conversation", () => {
+    const resolveConversationRouteOwner = () => ({
+      kind: "plugin" as const,
+      pluginId: "review-plugin",
+      fallbackAgentId: "main",
+    });
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "telegram" }),
+            messaging: { resolveConversationRouteOwner },
+          },
+        },
+      ]),
+    );
+    initializeGlobalHookRunner(
+      createMockPluginRegistry([
+        { hookName: "inbound_claim", pluginId: "review-plugin", handler: vi.fn() },
+      ]),
+    );
+    const conversation = {
+      channel: "telegram",
+      accountId: "default",
+      kind: "group" as const,
+      peerId: "-100123:topic:42",
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config: {}, agentId: "main", conversation })).toBe(
+      false,
+    );
+    expect(
+      isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
+    ).toBe(false);
+  });
+
+  it("uses the canonical fallback when a plugin-owned binding has no handler", () => {
+    const resolveConversationRouteOwner = () => ({
+      kind: "plugin" as const,
+      pluginId: "missing-plugin",
+      fallbackAgentId: "main",
+    });
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "telegram" }),
+            messaging: { resolveConversationRouteOwner },
+          },
+        },
+      ]),
+    );
+    initializeGlobalHookRunner(
+      createMockPluginRegistry([
+        { hookName: "inbound_claim", pluginId: "other-plugin", handler: vi.fn() },
+      ]),
+    );
+    const conversation = {
+      channel: "telegram",
+      accountId: "default",
+      kind: "group" as const,
+      peerId: "-100123:topic:42",
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config: {}, agentId: "main", conversation })).toBe(
+      true,
+    );
+    expect(
+      isConversationRouteEligibleForAgent({ config: {}, agentId: "finance", conversation }),
+    ).toBe(false);
   });
 
   it("does not let an unrelated contextual binding revive a reassigned route", () => {

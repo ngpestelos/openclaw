@@ -89,7 +89,7 @@ function normalizeSlackRouteBindingPeer(peer: SlackRouteBindingPeer): SlackRoute
   return normalizedId === peer.id ? peer : { ...peer, id: normalizedId };
 }
 
-function normalizeSlackRouteBindingConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function normalizeSlackRouteBindingConfig(cfg: OpenClawConfig): OpenClawConfig {
   const bindings = cfg.bindings;
   const cached = slackRouteBindingConfigCache.get(cfg);
   if (cached && cached.bindingsRef === bindings) {
@@ -138,6 +138,62 @@ function resolveSlackBaseConversationId(params: {
     ? `user:${params.message.user ?? "unknown"}`
     : params.message.channel;
   return qualifySlackConversationId(raw, params.eventScope);
+}
+
+export function resolveSlackConversationBindingRoute(params: {
+  cfg: OpenClawConfig;
+  route: ReturnType<typeof resolveAgentRoute>;
+  accountId: string;
+  baseConversationId: string;
+  runtimeBindingThreadId?: string;
+  bindingsEnabled: boolean;
+  touchBinding?: boolean;
+}) {
+  const boundThreadRoute =
+    params.bindingsEnabled && params.runtimeBindingThreadId
+      ? resolveRuntimeConversationBindingRoute({
+          route: params.route,
+          touchBinding: params.touchBinding,
+          conversation: {
+            channel: "slack",
+            accountId: params.accountId,
+            conversationId: params.runtimeBindingThreadId,
+            parentConversationId: params.baseConversationId,
+          },
+        })
+      : null;
+  const runtimeRoute = !params.bindingsEnabled
+    ? { route: params.route, bindingRecord: null, boundSessionKey: undefined }
+    : boundThreadRoute?.boundSessionKey || boundThreadRoute?.bindingRecord
+      ? boundThreadRoute
+      : resolveRuntimeConversationBindingRoute({
+          route: params.route,
+          touchBinding: params.touchBinding,
+          conversation: {
+            channel: "slack",
+            accountId: params.accountId,
+            conversationId: params.baseConversationId,
+          },
+        });
+  const configuredRoute =
+    params.bindingsEnabled && !runtimeRoute.boundSessionKey && !runtimeRoute.bindingRecord
+      ? resolveConfiguredBindingRoute({
+          cfg: params.cfg,
+          route: params.route,
+          conversation: {
+            channel: "slack",
+            accountId: params.accountId,
+            conversationId: params.baseConversationId,
+          },
+        })
+      : null;
+  return {
+    runtimeRoute,
+    configuredRoute,
+    route: runtimeRoute.boundSessionKey
+      ? runtimeRoute.route
+      : (configuredRoute?.route ?? params.route),
+  };
 }
 
 function resolveSlackInitialAgentRoute(params: {
@@ -259,48 +315,18 @@ export function resolveSlackRoutingContext(params: {
   });
   const runtimeBindingThreadId =
     routedThreadId ?? (isDirectMessage && isThreadReply ? threadTs : undefined);
-  const boundThreadRoute =
-    !eventScope && runtimeBindingThreadId
-      ? resolveRuntimeConversationBindingRoute({
-          route,
-          conversation: {
-            channel: "slack",
-            accountId: account.accountId,
-            conversationId: runtimeBindingThreadId,
-            parentConversationId: baseConversationId,
-          },
-        })
-      : null;
-  const runtimeRoute = eventScope
-    ? { route, bindingRecord: null, boundSessionKey: undefined }
-    : boundThreadRoute?.boundSessionKey || boundThreadRoute?.bindingRecord
-      ? boundThreadRoute
-      : resolveRuntimeConversationBindingRoute({
-          route,
-          conversation: {
-            channel: "slack",
-            accountId: account.accountId,
-            conversationId: baseConversationId,
-          },
-        });
-  let configuredBinding: ConfiguredBindingRouteResult["bindingResolution"] = null;
-  let configuredBindingSessionKey = "";
-  if (runtimeRoute.boundSessionKey || runtimeRoute.bindingRecord) {
-    route = runtimeRoute.route;
-  } else if (!eventScope) {
-    const configuredRoute = resolveConfiguredBindingRoute({
-      cfg: ctx.cfg,
-      route,
-      conversation: {
-        channel: "slack",
-        accountId: account.accountId,
-        conversationId: baseConversationId,
-      },
-    });
-    configuredBinding = configuredRoute.bindingResolution;
-    configuredBindingSessionKey = configuredRoute.boundSessionKey ?? "";
-    route = configuredRoute.route;
-  }
+  const bindingRoute = resolveSlackConversationBindingRoute({
+    cfg: ctx.cfg,
+    route,
+    accountId: account.accountId,
+    baseConversationId,
+    runtimeBindingThreadId,
+    bindingsEnabled: !eventScope,
+  });
+  const runtimeRoute = bindingRoute.runtimeRoute;
+  const configuredBinding = bindingRoute.configuredRoute?.bindingResolution ?? null;
+  const configuredBindingSessionKey = bindingRoute.configuredRoute?.boundSessionKey ?? "";
+  route = bindingRoute.route;
   const threadKeys =
     runtimeRoute.boundSessionKey || configuredBindingSessionKey
       ? { sessionKey: route.sessionKey, parentSessionKey: undefined }

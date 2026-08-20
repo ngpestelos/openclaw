@@ -39,7 +39,7 @@ describe("inspectTelegramConversationRouteOwner", () => {
         accountId: "default",
         conversation: { kind: "group", peerId: "-100123:topic:42", threadId: "42" },
       }),
-    ).toEqual({ agentId: "finance" });
+    ).toEqual({ kind: "agent", agentId: "finance" });
   });
 
   it("uses current forum and direct-topic agent overrides", () => {
@@ -58,14 +58,14 @@ describe("inspectTelegramConversationRouteOwner", () => {
         accountId: "default",
         conversation: { kind: "group", peerId: "-100123:topic:42", threadId: "42" },
       }),
-    ).toEqual({ agentId: "finance" });
+    ).toEqual({ kind: "agent", agentId: "finance" });
     expect(
       inspectTelegramConversationRouteOwner({
         cfg,
         accountId: "default",
         conversation: { kind: "direct", peerId: "12345:direct-topic:99", threadId: "99" },
       }),
-    ).toEqual({ agentId: "support" });
+    ).toEqual({ kind: "agent", agentId: "support" });
   });
 
   it("reflects topic reassignment from the current config", () => {
@@ -80,7 +80,7 @@ describe("inspectTelegramConversationRouteOwner", () => {
 
     expect(
       inspectTelegramConversationRouteOwner({ cfg: base, accountId: "default", conversation }),
-    ).toEqual({ agentId: "finance" });
+    ).toEqual({ kind: "agent", agentId: "finance" });
     expect(
       inspectTelegramConversationRouteOwner({
         cfg: {
@@ -93,7 +93,7 @@ describe("inspectTelegramConversationRouteOwner", () => {
         accountId: "default",
         conversation,
       }),
-    ).toEqual({ agentId: "support" });
+    ).toEqual({ kind: "agent", agentId: "support" });
   });
 
   it("inspects runtime bindings without refreshing their liveness", () => {
@@ -123,7 +123,43 @@ describe("inspectTelegramConversationRouteOwner", () => {
         accountId: "default",
         conversation: { kind: "group", peerId: "-100123:topic:42", threadId: "42" },
       }),
-    ).toEqual({ agentId: "review" });
+    ).toEqual({ kind: "agent", agentId: "review" });
+    expect(touch).not.toHaveBeenCalled();
+  });
+
+  it("classifies plugin-owned bindings independently of their session key", () => {
+    const touch = vi.fn<NonNullable<SessionBindingAdapter["touch"]>>();
+    registerSessionBindingAdapter({
+      channel: "telegram",
+      accountId: "default",
+      listBySession: () => [],
+      resolveByConversation: () => ({
+        bindingId: "binding-plugin",
+        targetSessionKey: "agent:review:looks-agent-owned",
+        targetKind: "session",
+        conversation: {
+          channel: "telegram",
+          accountId: "default",
+          conversationId: "-100123:topic:42",
+        },
+        status: "active",
+        boundAt: 1,
+        metadata: {
+          pluginBindingOwner: "plugin",
+          pluginId: "review-plugin",
+          pluginRoot: "/plugins/review",
+        },
+      }),
+      touch,
+    });
+
+    expect(
+      inspectTelegramConversationRouteOwner({
+        cfg: {},
+        accountId: "default",
+        conversation: { kind: "group", peerId: "-100123:topic:42", threadId: "42" },
+      }),
+    ).toEqual({ kind: "plugin", pluginId: "review-plugin", fallbackAgentId: "main" });
     expect(touch).not.toHaveBeenCalled();
   });
 });
