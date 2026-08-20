@@ -20,6 +20,7 @@ const mockState = vi.hoisted(() => ({
   resolveCommandText: vi.fn((_trigger: string, text: string) => text),
   buildModelsProviderData: vi.fn(async () => ({ providers: [], modelNames: new Map() })),
   resolveMattermostModelPickerEntry: vi.fn(() => ({ kind: "summary" })),
+  dispatchInbound: vi.fn(async () => ({ admission: { kind: "dispatch" }, dispatched: true })),
   authorizeMattermostCommandInvocation: vi.fn(() => ({
     ok: true,
     commandAuthorized: true,
@@ -83,6 +84,8 @@ vi.mock("../runtime.js", () => ({
       },
       text: {
         hasControlCommand: () => false,
+        resolveMarkdownTableMode: vi.fn(() => "off"),
+        resolveTextChunkLimit: vi.fn(() => 4000),
       },
       pairing: {
         readAllowFromStore: vi.fn(async () => []),
@@ -93,6 +96,9 @@ vi.mock("../runtime.js", () => ({
           sessionKey: "mattermost:session:1",
           accountId: "default",
         })),
+      },
+      inbound: {
+        dispatch: mockState.dispatchInbound,
       },
     },
   }),
@@ -123,6 +129,11 @@ vi.mock("./monitor-auth.js", () => ({
 }));
 
 vi.mock("./reply-delivery.js", () => ({
+  createMattermostReplyDeliveryBarrier: vi.fn(() => ({
+    markDeliverySettled: vi.fn(),
+    resolveTimeoutPolicy: vi.fn(),
+    trackDmChannelResolution: vi.fn(),
+  })),
   deliverMattermostReplyPayload: vi.fn(),
 }));
 
@@ -218,6 +229,7 @@ describe("slash-http cfg threading", () => {
     mockState.resolveCommandText.mockClear();
     mockState.buildModelsProviderData.mockClear();
     mockState.resolveMattermostModelPickerEntry.mockClear();
+    mockState.dispatchInbound.mockClear();
     mockState.authorizeMattermostCommandInvocation.mockClear();
     mockState.createMattermostClient.mockClear();
     mockState.fetchMattermostChannel.mockClear();
@@ -265,6 +277,36 @@ describe("slash-http cfg threading", () => {
         accountId: "default",
       }),
     );
+  });
+
+  it("carries the routed team into slash-command session context", async () => {
+    mockState.resolveMattermostModelPickerEntry.mockReturnValueOnce(undefined as never);
+    const handler = createSlashCommandHttpHandler({
+      account: accountFixture,
+      cfg: {} as OpenClawConfig,
+      runtime: {} as RuntimeEnv,
+      registeredCommands: [
+        {
+          id: "cmd-1",
+          teamId: "team-1",
+          trigger: "oc_models",
+          token: "valid-token",
+          url: callbackUrlFixture,
+          managed: false,
+        },
+      ],
+    });
+    const response = createResponse();
+
+    await handler(createRequest(), response.res);
+
+    await vi.waitFor(() => {
+      expect(mockState.dispatchInbound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ctxPayload: expect.objectContaining({ GroupSpace: "team-1" }),
+        }),
+      );
+    });
   });
 
   it("rejects a callback when Mattermost reports a different current command token", async () => {

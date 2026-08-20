@@ -847,6 +847,7 @@ async function handleSlashCommandAsync(params: {
     ChatType: chatType,
     ConversationLabel: fromLabel,
     GroupSubject: kind !== "direct" ? channelDisplay || roomLabel : undefined,
+    GroupSpace: kind !== "direct" ? teamId : undefined,
     SenderName: senderName,
     SenderId: senderId,
     Provider: "mattermost" as const,

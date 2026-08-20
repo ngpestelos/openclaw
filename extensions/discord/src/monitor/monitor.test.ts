@@ -130,6 +130,7 @@ describe("discord component interactions", () => {
   type DispatchParams = Parameters<DispatchReplyWithBufferedBlockDispatcherFn>[0];
 
   type ComponentContext = Parameters<CreateDiscordComponentButton>[0];
+  type ComponentChannel = ButtonInteraction["channel"];
 
   const createComponentContext = (overrides?: Partial<ComponentContext>) =>
     ({
@@ -417,11 +418,15 @@ describe("discord component interactions", () => {
     expect(reply).toHaveBeenCalledWith({ content: "✓", ephemeral: true });
     expect(lastDispatchCtx?.BodyForAgent).toBe('Clicked "Approve".');
     expect(dispatchReplyMock).toHaveBeenCalledTimes(1);
-    const dispatchParams = firstMockArg(dispatchReplyMock, "dispatchReplyMock") as
-      | DispatchParams
-      | undefined;
-    expect(typeof dispatchParams?.dispatcherOptions.responsePrefixContextProvider).toBe("function");
-    expect(typeof dispatchParams?.replyOptions?.onModelSelected).toBe("function");
+    const dispatchParams = firstMockArg(dispatchReplyMock, "dispatchReplyMock") as DispatchParams;
+    expect(typeof dispatchParams.dispatcherOptions.responsePrefixContextProvider).toBe("function");
+    expect(typeof dispatchParams.replyOptions?.onModelSelected).toBe("function");
+    registerDiscordComponentEntries({ entries: [createButtonEntry()], modals: [] });
+    const { interaction: threadInteraction } = createComponentButtonInteraction({
+      channel: { type: ChannelType.PublicThread, parentId: "parent-1" } as ComponentChannel,
+    });
+    await button.run(threadInteraction, { cid: "btn_1" } as ComponentData);
+    expect(lastDispatchCtx?.ThreadParentId).toBe("parent-1");
     await expect(resolveDiscordComponentEntryWithPersistence({ id: "btn_1" })).resolves.toBeNull();
   });
 

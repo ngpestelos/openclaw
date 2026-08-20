@@ -210,6 +210,7 @@ export async function dispatchDiscordComponentEvent(params: {
     GroupSubject: groupSubject,
     GroupChannel: groupChannel,
     MemberRoleIds: interactionCtx.memberRoleIds,
+    ThreadParentId: channelCtx.parentId,
     GroupSystemPrompt: interactionCtx.isDirectMessage ? undefined : groupSystemPrompt,
     GroupSpace: guildInfo?.id ?? guildInfo?.slug ?? interactionCtx.rawGuildId ?? undefined,
     OwnerAllowFrom: ownerAllowFrom,

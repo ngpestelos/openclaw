@@ -467,7 +467,7 @@ describe("initSessionState guarded initialization", () => {
     );
   });
 
-  it("preserves route facts across an admitted internal reflection turn", async () => {
+  it("preserves route facts across an admitted turn with partial context", async () => {
     const storePath = await createStorePath("openclaw-session-route-context-reflection-");
     const sessionKey = "agent:main:msteams:channel:ops";
     const cfg = { session: { store: storePath } } as OpenClawConfig;
@@ -494,7 +494,6 @@ describe("initSessionState guarded initialization", () => {
         OriginatingChannel: "msteams",
         SessionKey: sessionKey,
         InboundAccessAuthorized: true,
-        ConversationRouteContextAuthoritative: false,
       },
       cfg,
     });

@@ -151,7 +151,6 @@ export async function runChannelFeedbackReflection(params: {
     reply: { to: target, originatingTo: target },
     message: { body, bodyForAgent: prompt, rawBody: prompt, commandBody: prompt },
     access: { commands: { authorized: false } },
-    extra: { ConversationRouteContextAuthoritative: false },
   });
   const responses: string[] = [];
   await dispatchRoutedChannelTurn({

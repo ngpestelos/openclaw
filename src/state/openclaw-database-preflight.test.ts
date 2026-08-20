@@ -463,6 +463,24 @@ describe("OpenClaw database schema preflight", () => {
     });
   });
 
+  it("accepts a registered current agent database pending the additive route-context column", () => {
+    const stateDir = tempDirs.make("openclaw-database-preflight-agent-route-context-");
+    const env = { OPENCLAW_STATE_DIR: stateDir };
+    const agentPath = openOpenClawAgentDatabase({ agentId: "worker-1", env }).path;
+    closeOpenClawAgentDatabasesForTest();
+    closeOpenClawStateDatabaseForTest();
+
+    const { DatabaseSync } = requireNodeSqlite();
+    const agent = new DatabaseSync(agentPath);
+    try {
+      agent.exec("ALTER TABLE session_conversations DROP COLUMN route_context_json;");
+    } finally {
+      agent.close();
+    }
+
+    expect(() => assertOpenClawDatabasesReadyForRestart({ env })).not.toThrow();
+  });
+
   it("reports a current but noncanonical registered agent schema as indeterminate", () => {
     const stateDir = tempDirs.make("openclaw-database-preflight-noncanonical-agent-");
     const env = { OPENCLAW_STATE_DIR: stateDir };
