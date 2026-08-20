@@ -621,9 +621,12 @@ async function patchSqliteSessionEntrySnapshot<TSnapshot>(
             previous: writeBase,
             sessionKey,
           });
-      const selectedPreviousEntry = params.existingEntry(fresh) ?? writeBase;
+      const persistedPreviousEntry = params.existingEntry(fresh);
+      const selectedPreviousEntry = persistedPreviousEntry ?? writeBase;
       writeSessionEntry(writeDatabase, sessionKey, next, {
         previousEntry: selectedPreviousEntry,
+        // A fallback is a creation seed, not prior durable authority for private route facts.
+        routePreviousEntry: persistedPreviousEntry ?? null,
       });
       if (params.rehomeWindows) {
         rehomeSessionWindows(writeDatabase, sessionKey, legacyKeys);

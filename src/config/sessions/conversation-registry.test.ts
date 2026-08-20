@@ -16,8 +16,11 @@ import {
   resolveConversationScanBoundary,
   scanConversations,
 } from "./conversation-registry.js";
+import { stampConversationRouteContext } from "./conversation-route-context-internal.js";
 import {
   deleteSessionEntryLifecycle,
+  loadSessionEntry,
+  replaceSessionEntrySync,
   upsertSessionEntryCore as upsertCanonicalSessionEntry,
 } from "./session-accessor.js";
 import {
@@ -32,10 +35,16 @@ type LegacyDeliveryFixture = Partial<InternalSessionEntry> & {
   origin?: SessionOrigin;
 };
 
-const upsertSessionEntry = (
+const upsertSessionEntry = async (
   scope: Parameters<typeof upsertCanonicalSessionEntry>[0],
   entry: LegacyDeliveryFixture,
-) => upsertCanonicalSessionEntry(scope, normalizeLegacySessionEntryDelivery(entry as SessionEntry));
+) => {
+  const normalized = normalizeLegacySessionEntryDelivery(entry as SessionEntry);
+  const next = { ...loadSessionEntry(scope), ...normalized } as InternalSessionEntry;
+  stampConversationRouteContext(next);
+  replaceSessionEntrySync(scope, next);
+  return loadSessionEntry(scope);
+};
 
 describe("conversation registry", () => {
   let tempDir: string;
@@ -225,6 +234,66 @@ describe("conversation registry", () => {
     ]);
   });
 
+  it("rejects route context after a same-schema rollback writer advances the entry", async () => {
+    const scope = {
+      agentId: "main",
+      sessionKey: "agent:main:discord:channel:rollback",
+      storePath,
+    };
+    await upsertSessionEntry(scope, {
+      sessionId: "rollback-session",
+      lifecycleRevision: "rollback-generation",
+      updatedAt: 100,
+      chatType: "channel",
+      deliveryContext: { channel: "discord", accountId: "default", to: "channel:rollback" },
+      conversationRouteContext: { guildId: "guild-a", memberRoleIds: ["support"] },
+    });
+    expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toEqual({
+      guildId: "guild-a",
+      memberRoleIds: ["support"],
+    });
+
+    const resolved = resolveSqliteReadScope(scope);
+    const database = openOpenClawAgentDatabase(toDatabaseOptions(resolved));
+    const db = getSessionKysely(database.db);
+    const node = executeSqliteQuerySync(
+      database.db,
+      db
+        .selectFrom("session_nodes")
+        .select("entry_json")
+        .where("session_key", "=", scope.sessionKey),
+    ).rows[0];
+    const downgradedEntry = JSON.parse(node!.entry_json) as InternalSessionEntry;
+    downgradedEntry.updatedAt = 200;
+    executeSqliteQuerySync(
+      database.db,
+      db
+        .updateTable("session_nodes")
+        .set({ entry_json: JSON.stringify(downgradedEntry), updated_at: 200 })
+        .where("session_key", "=", scope.sessionKey),
+    );
+    executeSqliteQuerySync(
+      database.db,
+      db
+        .updateTable("session_conversations")
+        .set({ last_seen_at: 200 })
+        .where("session_id", "=", "rollback-session"),
+    );
+    closeOpenClawAgentDatabasesForTest();
+
+    expect(listConversations(scope, { channel: "discord" })[0]).toMatchObject({
+      lastSeenAt: 200,
+      observedFromSession: true,
+    });
+    expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toBeUndefined();
+
+    await upsertCanonicalSessionEntry(scope, { label: "after rollback" });
+    expect(loadSessionEntry(scope)).toMatchObject({ label: "after rollback" });
+    expect(loadSessionEntry(scope)?.conversationRouteContext).toBeUndefined();
+    expect(loadSessionEntry(scope)?.conversationRouteContextFingerprint).toBeUndefined();
+    expect(listConversations(scope, { channel: "discord" })[0]?.routeContext).toBeUndefined();
+  });
+
   it("assigns an unscoped session association only to its fixed-store owner", async () => {
     await upsertSessionEntry(
       { agentId: "main", sessionKey: "global", storePath },
@@ -402,18 +471,18 @@ describe("conversation registry", () => {
     const resolved = resolveSqliteReadScope({ agentId: "main", storePath });
     const database = openOpenClawAgentDatabase(toDatabaseOptions(resolved));
     const db = getSessionKysely(database.db);
-    executeSqliteQuerySync(
+    const liveLastSeenAt = executeSqliteQuerySync(
       database.db,
       db
-        .updateTable("session_conversations")
-        .set({ last_seen_at: 100 })
+        .selectFrom("session_conversations")
+        .select("last_seen_at")
         .where("session_id", "=", "live-session"),
-    );
+    ).rows[0]!.last_seen_at;
     executeSqliteQuerySync(
       database.db,
       db
         .updateTable("session_conversations")
-        .set({ last_seen_at: 200 })
+        .set({ last_seen_at: liveLastSeenAt + 1 })
         .where("session_id", "=", "stale-session"),
     );
     executeSqliteQuerySync(
@@ -428,7 +497,7 @@ describe("conversation registry", () => {
       sessionId: "live-session",
       sessionKey: liveSessionKey,
       routeContext: { teamId: "live-team" },
-      lastSeenAt: 100,
+      lastSeenAt: liveLastSeenAt,
     });
   });
 

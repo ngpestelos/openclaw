@@ -60,6 +60,7 @@ const SESSION_ENTRY_RESERVED_SLOT_KEY_LIST = [
   "lifecycleRunId",
   "activeWriterRunId",
   "conversationRouteContext",
+  "conversationRouteContextFingerprint",
   "mainRestartRecovery",
   "subagentRecovery",
   "pluginOwnerId",

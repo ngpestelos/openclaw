@@ -14,6 +14,7 @@ import {
   sessionDeliveryOrigin,
 } from "../../utils/delivery-context.shared.js";
 import type { DeliveryContext } from "../../utils/delivery-context.types.js";
+import { conversationRouteContextFromSessionEntry } from "./conversation-route-context-internal.js";
 import { resolveGroupSessionKey } from "./group.js";
 import { deriveSessionOrigin } from "./metadata.js";
 import type { GroupKeyResolution, InternalSessionEntry, SessionEntry } from "./types.js";
@@ -174,12 +175,13 @@ export function conversationIdentityFromSessionEntry(
         kind,
       })
     : undefined;
+  const routeContext = conversationRouteContextFromSessionEntry(entry);
   return buildConversationIdentity({
     channel,
     accountId: routeOwnsTarget ? deliveryContext?.accountId : origin?.accountId,
     kind,
     // Native ids remain descriptive metadata and cannot redirect a stored conversation ref.
-    peerId: entry.conversationRouteContext?.peerId ?? pairedOriginPeerId ?? deliveryTarget,
+    peerId: routeContext?.peerId ?? pairedOriginPeerId ?? deliveryTarget,
     deliveryTarget,
     threadId: routeOwnsTarget ? deliveryContext?.threadId : origin?.threadId,
     nativeChannelId: origin?.nativeChannelId,

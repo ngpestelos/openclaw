@@ -625,6 +625,8 @@ export interface SessionEntry extends SessionEntryCore {}
 export type InternalSessionEntryCore = SessionEntryCore & {
   /** Exact inbound route facts for detached conversation-route revalidation. */
   conversationRouteContext?: ConversationRouteContext;
+  /** Binds route facts to the exact private session entry that last validated them. */
+  conversationRouteContextFingerprint?: string;
   /** Run that owns the current non-terminal Gateway lifecycle projection. */
   lifecycleRunId?: string;
   /** Run admitted by the session lane; overwritten at admission and checked by transcript writes. */

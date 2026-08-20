@@ -25,11 +25,11 @@ import {
   rollbackPluginOwnedSessionEntryLifecycle,
 } from "../../config/sessions/session-accessor.js";
 import type { SessionAcpMeta, SessionEntry } from "../../config/sessions/types.js";
+import { updatePluginSessionStoreEntry } from "../../plugin-sdk/session-store-runtime-agent.js";
 import {
   getSessionEntry,
   listSessionEntries,
   patchSessionEntry,
-  updatePluginSessionStoreEntry,
   upsertSessionEntry,
 } from "../../plugin-sdk/session-store-runtime.js";
 import {

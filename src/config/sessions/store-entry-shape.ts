@@ -3,7 +3,7 @@ import { isRecord } from "@openclaw/normalization-core/record-coerce";
 import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
 import { normalizeSessionIconValue } from "../../../packages/gateway-protocol/src/session-agent-status.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
-import { parseConversationRouteContext } from "./conversation-route-context.js";
+import { parseConversationRouteContext } from "./conversation-route-context-internal.js";
 import { validateSessionId } from "./paths.js";
 import type { PendingTranscriptRepairState, SessionEntry } from "./types.js";
 
@@ -78,6 +78,14 @@ export function projectCanonicalSessionEntryShape(value: Record<string, unknown>
     canonicalValue.conversationRouteContext = conversationRouteContext;
   } else {
     delete canonicalValue.conversationRouteContext;
+  }
+  const conversationRouteContextFingerprint = normalizeOptionalString(
+    canonicalValue.conversationRouteContextFingerprint,
+  );
+  if (conversationRouteContextFingerprint) {
+    canonicalValue.conversationRouteContextFingerprint = conversationRouteContextFingerprint;
+  } else {
+    delete canonicalValue.conversationRouteContextFingerprint;
   }
   const legacyPendingText = normalizeOptionalString(pendingFinalDeliveryText);
   const legacySelectedModel = normalizeOptionalString(fallbackNoticeSelectedModel);

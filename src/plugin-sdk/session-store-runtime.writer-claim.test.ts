@@ -1,6 +1,7 @@
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { useAutoCleanupTempDirTracker } from "../../test/helpers/temp-dir.js";
+import { stampConversationRouteContext } from "../config/sessions/conversation-route-context-internal.js";
 import { loadSessionEntry, replaceSessionEntry } from "../config/sessions/session-accessor.js";
 import type { InternalSessionEntry } from "../config/sessions/types.js";
 import {
@@ -18,7 +19,7 @@ import {
 const tempDirs = useAutoCleanupTempDirTracker(afterEach);
 
 function privateGenerationEntry(): InternalSessionEntry {
-  return {
+  const entry: InternalSessionEntry = {
     activeWriterRunId: "writer-run",
     conversationRouteContext: { guildId: "guild-a" },
     lifecycleRevision: "generation-1",
@@ -31,11 +32,14 @@ function privateGenerationEntry(): InternalSessionEntry {
     sessionId: "session-1",
     updatedAt: 10,
   };
+  stampConversationRouteContext(entry);
+  return entry;
 }
 
 function expectGenerationPrivateFieldsCleared(entry: InternalSessionEntry | undefined): void {
   expect(entry?.activeWriterRunId).toBeUndefined();
   expect(entry?.conversationRouteContext).toBeUndefined();
+  expect(entry?.conversationRouteContextFingerprint).toBeUndefined();
   expect(entry?.lifecycleRunId).toBeUndefined();
   expect(entry?.sessionDiffBaselineCapture).toBeUndefined();
 }
@@ -48,6 +52,14 @@ const sessionEntryKeepsBaselineClaimPrivate: "sessionDiffBaselineCapture" extend
   ? false
   : true = true;
 void sessionEntryKeepsBaselineClaimPrivate;
+const sessionEntryKeepsConversationRouteContextPrivate: "conversationRouteContext" extends keyof SessionEntry
+  ? false
+  : true = true;
+void sessionEntryKeepsConversationRouteContextPrivate;
+const sessionEntryKeepsConversationRouteFingerprintPrivate: "conversationRouteContextFingerprint" extends keyof SessionEntry
+  ? false
+  : true = true;
+void sessionEntryKeepsConversationRouteFingerprintPrivate;
 const sessionEntryKeepsThinkingSelectionPrivate: "thinkingLevelSelection" extends keyof SessionEntry
   ? false
   : true = true;
@@ -58,10 +70,6 @@ const sessionFallbackKeepsThinkingSelectionPrivate: "prevThinkingLevelSelection"
   ? false
   : true = true;
 void sessionFallbackKeepsThinkingSelectionPrivate;
-const sessionEntryKeepsConversationRouteContextPrivate: "conversationRouteContext" extends keyof SessionEntry
-  ? false
-  : true = true;
-void sessionEntryKeepsConversationRouteContextPrivate;
 
 describe("plugin session writer claim projection", () => {
   it("excludes private claims and retired thinking provenance from entries and patches", () => {

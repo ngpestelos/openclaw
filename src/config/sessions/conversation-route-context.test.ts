@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
+import {
+  conversationRouteContextFromSessionEntry,
+  reconcileConversationRouteContext,
+  stampConversationRouteContext,
+} from "./conversation-route-context-internal.js";
 import { conversationRouteContextFromMsgContext } from "./conversation-route-context.js";
+import type { InternalSessionEntry } from "./types.js";
 
 describe("conversationRouteContextFromMsgContext", () => {
   it("captures Discord guild, role, and parent facts deterministically", () => {
@@ -45,5 +51,36 @@ describe("conversationRouteContextFromMsgContext", () => {
         ConversationRoutePeerId: "oc_room:topic:om_root:sender:ou_sender",
       }),
     ).toEqual({ peerId: "oc_room:topic:om_root:sender:ou_sender" });
+  });
+});
+
+describe("session route context provenance", () => {
+  const createEntry = (): InternalSessionEntry => ({
+    sessionId: "session-a",
+    lifecycleRevision: "revision-a",
+    updatedAt: 100,
+    conversationRouteContext: { guildId: "guild-a" },
+  });
+
+  it("rejects route context that was not stamped by its authoritative producer", () => {
+    const entry = createEntry();
+
+    reconcileConversationRouteContext(entry);
+
+    expect(entry.conversationRouteContext).toBeUndefined();
+    expect(entry.conversationRouteContextFingerprint).toBeUndefined();
+  });
+
+  it("restamps unchanged context after a current writer advances activity", () => {
+    const previousEntry = createEntry();
+    stampConversationRouteContext(previousEntry);
+    const entry = { ...previousEntry, updatedAt: 200 };
+
+    reconcileConversationRouteContext(entry, previousEntry);
+
+    expect(conversationRouteContextFromSessionEntry(entry)).toEqual({ guildId: "guild-a" });
+    expect(entry.conversationRouteContextFingerprint).not.toBe(
+      previousEntry.conversationRouteContextFingerprint,
+    );
   });
 });

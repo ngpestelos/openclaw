@@ -6,10 +6,8 @@ import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-ke
 import { openOpenClawAgentDatabase } from "../../state/openclaw-agent-db.js";
 import type { OpenClawConfig } from "../types.openclaw.js";
 import type { ConversationIdentity, ConversationKind } from "./conversation-identity.js";
-import {
-  parseConversationRouteContext,
-  type ConversationRouteContext,
-} from "./conversation-route-context.js";
+import { parseStoredConversationRouteContext } from "./conversation-route-context-internal.js";
+import type { ConversationRouteContext } from "./conversation-route-context.js";
 import { resolveSessionStorePathCore } from "./paths.js";
 import { upsertConversationIdentity } from "./session-accessor.sqlite-conversation.js";
 import {
@@ -157,8 +155,9 @@ function mapConversationRow(
       : null;
   const hasCurrentBinding = currentEntry?.sessionId === row.current_session_id;
   const routeContext = ownedAssociation
-    ? parseConversationRouteContext(
+    ? parseStoredConversationRouteContext(
         row.route_context_json ? safeParseJsonRecord(row.route_context_json) : undefined,
+        row.last_seen_at,
       )
     : undefined;
   return {

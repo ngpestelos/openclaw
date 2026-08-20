@@ -1,3 +1,4 @@
+import { safeParseJsonRecord } from "@openclaw/normalization-core/json-coercion";
 import { executeSqliteQuerySync } from "../../infra/kysely-sync.js";
 import type { OpenClawAgentDatabase } from "../../state/openclaw-agent-db.js";
 import {
@@ -5,9 +6,11 @@ import {
   type ConversationIdentity,
 } from "./conversation-identity.js";
 import {
-  parseConversationRouteContext,
-  type ConversationRouteContext,
-} from "./conversation-route-context.js";
+  conversationRouteContextFromSessionEntry,
+  parseStoredConversationRouteContext,
+  serializeStoredConversationRouteContext,
+} from "./conversation-route-context-internal.js";
+import type { ConversationRouteContext } from "./conversation-route-context.js";
 import { getSessionKysely } from "./session-accessor.sqlite-scope.js";
 import type { InternalSessionEntry } from "./types.js";
 
@@ -28,7 +31,7 @@ export function prepareSessionConversation(params: {
   if (!identity) {
     return null;
   }
-  const routeContext = parseConversationRouteContext(params.entry.conversationRouteContext);
+  const routeContext = conversationRouteContextFromSessionEntry(params.entry);
   return {
     identity,
     role:
@@ -99,7 +102,7 @@ export function linkSessionConversation(params: {
       database.db,
       db
         .selectFrom("session_conversations")
-        .select(["conversation_id", "first_seen_at", "route_context_json"])
+        .select(["conversation_id", "first_seen_at", "last_seen_at", "route_context_json"])
         .where("session_id", "=", sessionId)
         .where("role", "=", "primary")
         .where("conversation_id", "!=", conversation.identity.conversationRef),
@@ -114,7 +117,13 @@ export function linkSessionConversation(params: {
               session_id: sessionId,
               conversation_id: row.conversation_id,
               role: "related",
-              route_context_json: row.route_context_json,
+              route_context_json: serializeStoredConversationRouteContext(
+                parseStoredConversationRouteContext(
+                  row.route_context_json ? safeParseJsonRecord(row.route_context_json) : undefined,
+                  row.last_seen_at,
+                ),
+                updatedAt,
+              ),
               first_seen_at: row.first_seen_at,
               last_seen_at: updatedAt,
             })),
@@ -155,17 +164,19 @@ export function linkSessionConversation(params: {
         session_id: sessionId,
         conversation_id: conversation.identity.conversationRef,
         role: conversation.role,
-        route_context_json: conversation.routeContext
-          ? JSON.stringify(conversation.routeContext)
-          : null,
+        route_context_json: serializeStoredConversationRouteContext(
+          conversation.routeContext,
+          updatedAt,
+        ),
         first_seen_at: updatedAt,
         last_seen_at: updatedAt,
       })
       .onConflict((conflict) =>
         conflict.columns(["session_id", "conversation_id", "role"]).doUpdateSet({
-          route_context_json: conversation.routeContext
-            ? JSON.stringify(conversation.routeContext)
-            : null,
+          route_context_json: serializeStoredConversationRouteContext(
+            conversation.routeContext,
+            updatedAt,
+          ),
           last_seen_at: updatedAt,
         }),
       ),

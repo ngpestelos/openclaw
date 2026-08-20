@@ -493,7 +493,7 @@ export function readAmbientTranscriptWatermark(
 }
 
 /** Updates an existing session entry by store path and session key. */
-export async function updatePluginSessionStoreEntry(
+async function updatePluginSessionStoreEntry(
   params: UpdateSessionStoreEntryParams,
 ): Promise<SessionEntry | null> {
   const entry = await updateSessionEntry(

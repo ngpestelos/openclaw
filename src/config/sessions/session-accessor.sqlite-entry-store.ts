@@ -6,6 +6,7 @@ import {
 } from "../../infra/kysely-sync.js";
 import type { DB as OpenClawAgentKyselyDatabase } from "../../state/openclaw-agent-db.generated.js";
 import type { OpenClawAgentDatabase } from "../../state/openclaw-agent-db.js";
+import { reconcileConversationRouteContext } from "./conversation-route-context-internal.js";
 import {
   linkSessionConversation,
   prepareSessionConversation,
@@ -580,6 +581,7 @@ export function writeSessionEntry(
     allowStoredAliases?: boolean;
     preserveNodeSuggestions?: boolean;
     previousEntry?: SessionEntry | null;
+    routePreviousEntry?: SessionEntry | null;
   } = {},
 ): void {
   const db = getSessionKysely(database.db);
@@ -612,7 +614,9 @@ export function writeSessionEntry(
     options.previousEntry === undefined
       ? canonicalPreviousEntry
       : (options.previousEntry ?? undefined);
-  // The lifecycle-selected entry owns visibility copy-forward semantics.
+  const routePrevious =
+    "routePreviousEntry" in options ? options.routePreviousEntry : previousEntry;
+  reconcileConversationRouteContext(normalizedEntry, routePrevious);
   if (previousEntry && previousEntry.sessionId !== normalizedEntry.sessionId) {
     delete normalizedEntry.visibility;
   }

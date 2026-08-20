@@ -84,7 +84,6 @@ function resolvePluginRouteOwner(
 function bindingPeerCouldMatchConversation(
   binding: ReturnType<typeof listRouteBindings>[number],
   conversation: ConversationRouteCandidate,
-  hasThreadContext: boolean,
 ): boolean {
   const peer = binding.match.peer;
   if (!peer) {
@@ -98,7 +97,7 @@ function bindingPeerCouldMatchConversation(
   if (peerKindMatches(kind, conversation.kind) && (id === "*" || id === conversation.peerId)) {
     return true;
   }
-  return hasThreadContext && conversation.kind !== "direct" && kind !== "direct";
+  return false;
 }
 
 function resolveRouteOwner(
@@ -187,7 +186,7 @@ function hasUnrecordedContextualBinding(
       normalizeAgentId(binding.agentId) !== resolvedAgentId &&
       normalizeLowercaseStringOrEmpty(binding.match.channel) === channel &&
       (pattern === "*" || normalizeAccountId(pattern) === accountId) &&
-      bindingPeerCouldMatchConversation(binding, conversation, hasThreadContext)
+      bindingPeerCouldMatchConversation(binding, conversation)
     );
   });
 }

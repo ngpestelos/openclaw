@@ -10,12 +10,14 @@ import * as bootstrapCache from "../../agents/bootstrap-cache.js";
 import { buildChannelInboundEventContext } from "../../channels/inbound-event/context.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { InternalSessionEntry as SessionEntry } from "../../config/sessions.js";
+import { stampConversationRouteContext } from "../../config/sessions/conversation-route-context-internal.js";
 import {
   appendTranscriptMessage,
   appendTranscriptEvent,
   listSessionParticipantsReadOnly,
   loadSessionEntry,
   loadTranscriptEvents,
+  replaceSessionEntrySync,
   upsertSessionEntryCore,
 } from "../../config/sessions/session-accessor.js";
 import { runExclusiveSessionStoreWrite } from "../../config/sessions/store-writer.js";
@@ -509,17 +511,16 @@ describe("initSessionState guarded initialization", () => {
     const storePath = await createStorePath("openclaw-session-route-context-rollover-");
     const sessionKey = "agent:main:msteams:channel:ops-rollover";
     const staleStartedAt = Date.now() - 48 * 60 * 60 * 1000;
-    await upsertSessionEntryCore(
-      { storePath, sessionKey },
-      {
-        sessionId: "session-before-route-rollover",
-        lifecycleRevision: "lifecycle-before-route-rollover",
-        updatedAt: staleStartedAt,
-        sessionStartedAt: staleStartedAt,
-        lastInteractionAt: staleStartedAt,
-        conversationRouteContext: { teamId: "team-a" },
-      },
-    );
+    const staleEntry: SessionEntry = {
+      sessionId: "session-before-route-rollover",
+      lifecycleRevision: "lifecycle-before-route-rollover",
+      updatedAt: staleStartedAt,
+      sessionStartedAt: staleStartedAt,
+      lastInteractionAt: staleStartedAt,
+      conversationRouteContext: { teamId: "team-a" },
+    };
+    stampConversationRouteContext(staleEntry);
+    replaceSessionEntrySync({ storePath, sessionKey }, staleEntry);
 
     const reflected = await initSessionState({
       ctx: {

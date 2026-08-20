@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from "vitest";
 import { createDeferred } from "../../../test/helpers/promise.js";
+import { stampConversationRouteContext } from "../../config/sessions/conversation-route-context-internal.js";
 import {
   loadSessionEntryReadOnly,
   loadTranscriptEvents,
@@ -30,10 +31,12 @@ describe("plugin runtime session creation", () => {
         updatedAt: 1,
         conversationRouteContext: { guildId: "guild-a" },
       };
+      stampConversationRouteContext(internalEntry);
       await replaceSessionEntry({ storePath, sessionKey }, internalEntry);
 
       const read = runtime.session.getSessionEntry({ storePath, sessionKey });
       expect(read).not.toHaveProperty("conversationRouteContext");
+      expect(read).not.toHaveProperty("conversationRouteContextFingerprint");
       expect(runtime.session.listSessionEntries({ storePath })[0]?.entry).not.toHaveProperty(
         "conversationRouteContext",
       );

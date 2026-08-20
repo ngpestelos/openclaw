@@ -11,6 +11,10 @@ import { clearAllCliSessions, getCliSessionBinding } from "../../agents/cli-sess
 import { resetRegisteredAgentHarnessSessions } from "../../agents/harness/registry.js";
 import { cleanupBrowserSessionsForLifecycleEnd } from "../../browser-lifecycle-cleanup.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
+import {
+  conversationRouteContextFromSessionEntry,
+  stampConversationRouteContext,
+} from "../../config/sessions/conversation-route-context-internal.js";
 import { conversationRouteContextFromMsgContext } from "../../config/sessions/conversation-route-context.js";
 import { resolveGroupSessionKey } from "../../config/sessions/group.js";
 import {
@@ -926,11 +930,13 @@ async function initSessionStateAttemptLocked(
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };
   }
+  sessionEntry.conversationRouteContext = conversationRouteContextFromSessionEntry(entry);
+  sessionEntry.conversationRouteContextFingerprint = undefined;
   if (!isSystemEvent && sessionCtxForState.InboundAccessAuthorized === true) {
     if (sessionCtxForState.ConversationRouteContextAuthoritative === false) {
       // Partial synthetic turns reuse the existing conversation but cannot re-attest its route
       // facts. Keep those facts even when an idle/daily rollover rotates the session generation.
-      sessionEntry.conversationRouteContext = entry?.conversationRouteContext;
+      sessionEntry.conversationRouteContext = conversationRouteContextFromSessionEntry(entry);
     } else {
       sessionEntry.conversationRouteContext =
         conversationRouteContextFromMsgContext(sessionCtxForState);
@@ -1034,13 +1040,11 @@ async function initSessionStateAttemptLocked(
     },
     ...(previousSessionEntry ? { resetBoundaryReason: resetReason } : {}),
     beforeEntryMutation: ({ currentEntry, sessionEntry: entryToCommit }) => {
-      if (!previousSessionEntry || !currentEntry) {
-        return;
-      }
-      if (resetBoundaryAppended) {
+      if (previousSessionEntry && currentEntry && resetBoundaryAppended) {
         clearAllCliSessions(entryToCommit);
         entryToCommit.agentHarnessId = undefined;
       }
+      stampConversationRouteContext(entryToCommit);
     },
     previousEntry: previousSessionEntry,
     retiredEntry: retiredLegacyMainDelivery,

@@ -76,6 +76,11 @@ export function generationValidPrivateFieldsForSameSession(
     ...(existingEntry.conversationRouteContext
       ? { conversationRouteContext: existingEntry.conversationRouteContext }
       : {}),
+    ...(existingEntry.conversationRouteContextFingerprint
+      ? {
+          conversationRouteContextFingerprint: existingEntry.conversationRouteContextFingerprint,
+        }
+      : {}),
     ...(existingEntry.lifecycleRunId !== undefined
       ? { lifecycleRunId: existingEntry.lifecycleRunId }
       : {}),

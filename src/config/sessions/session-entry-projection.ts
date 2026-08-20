@@ -9,6 +9,7 @@ type RetiredThinkingSelectionQuarantine = {
 export const SESSION_ENTRY_PRIVATE_CLEAR_PATCH = {
   activeWriterRunId: undefined,
   conversationRouteContext: undefined,
+  conversationRouteContextFingerprint: undefined,
   lifecycleRunId: undefined,
   mainRestartRecovery: undefined,
   sessionDiffBaselineCapture: undefined,
@@ -17,6 +18,7 @@ export const SESSION_ENTRY_PRIVATE_CLEAR_PATCH = {
 const PRIVATE_SESSION_ENTRY_KEYS = [
   "activeWriterRunId",
   "conversationRouteContext",
+  "conversationRouteContextFingerprint",
   "lifecycleRunId",
   "mainRestartRecovery",
   "sessionDiffBaselineCapture",

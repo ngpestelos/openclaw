@@ -7,7 +7,8 @@ import {
   conversationIdentityFromMsgContext,
   conversationIdentityFromSessionEntry as conversationIdentityFromCanonicalSessionEntry,
 } from "./conversation-identity.js";
-import type { SessionEntry, SessionOrigin } from "./types.js";
+import { stampConversationRouteContext } from "./conversation-route-context-internal.js";
+import type { InternalSessionEntry, SessionEntry, SessionOrigin } from "./types.js";
 
 type LegacyDeliveryFixture = SessionEntry & {
   route?: ChannelRouteRef;
@@ -249,7 +250,7 @@ describe("conversation identity", () => {
       threadId: "om_root",
     });
 
-    const persisted = conversationIdentityFromCanonicalSessionEntry({
+    const persistedEntry: InternalSessionEntry = {
       sessionId: "session-scoped-peer",
       updatedAt: 1,
       chatType: "group",
@@ -274,7 +275,9 @@ describe("conversation identity", () => {
         },
       },
       conversationRouteContext: { peerId: "oc_room:topic:om_root:sender:ou_sender" },
-    });
+    };
+    stampConversationRouteContext(persistedEntry);
+    const persisted = conversationIdentityFromCanonicalSessionEntry(persistedEntry);
     expect(persisted?.conversationRef).toBe(identity?.conversationRef);
     expect(persisted?.peerId).toBe("oc_room:topic:om_root:sender:ou_sender");
   });
