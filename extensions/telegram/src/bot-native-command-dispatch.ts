@@ -35,6 +35,7 @@ import type { TelegramBotOptions } from "./bot.types.js";
 import {
   buildSenderName,
   buildTelegramGroupFrom,
+  buildTelegramParentPeer,
   buildTelegramRoutingTarget,
   buildTelegramThreadParams,
   extractTelegramForumFlag,
@@ -579,6 +580,7 @@ export async function dispatchTelegramBuiltinTurn(params: {
     AccountId: dispatch.route.accountId,
     CommandTargetSessionKey: commandTargetSessionKey,
     MessageThreadId: dispatch.threadSpec.id,
+    ThreadParentId: buildTelegramParentPeer(dispatch)?.id,
     IsForum: dispatch.isForum,
     TopicName: dispatch.isForum && topicName ? topicName : undefined,
     OriginatingChannel: "telegram" as const,

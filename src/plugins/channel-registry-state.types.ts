@@ -8,6 +8,7 @@ export type ActiveChannelPluginRuntimeShape = {
   } | null;
   messaging?: {
     targetPrefixes?: readonly string[];
+    resolveConversationRouteOwner?: (...args: never[]) => unknown;
   } | null;
   capabilities?: {
     nativeCommands?: boolean;

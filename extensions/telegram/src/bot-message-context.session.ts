@@ -39,6 +39,7 @@ import {
   buildSenderName,
   buildTelegramGroupFrom,
   buildTelegramInboundOriginTarget,
+  buildTelegramParentPeer,
   describeReplyTarget,
   getTelegramTextParts,
   normalizeForwardedContext,
@@ -674,6 +675,11 @@ export async function buildTelegramInboundContextPayload(params: {
       kind: conversationKind,
       id: String(chatId),
       label: conversationLabel,
+      parentId: buildTelegramParentPeer({
+        isGroup,
+        resolvedThreadId: threadSpec.id,
+        chatId,
+      })?.id,
       threadId: threadSpec.id != null ? String(threadSpec.id) : undefined,
     },
     route: {

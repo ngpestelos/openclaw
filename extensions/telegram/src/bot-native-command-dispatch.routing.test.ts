@@ -336,6 +336,7 @@ describe("Telegram native command dispatch routing", () => {
                 CommandTargetSessionKey?: string;
                 MessageThreadId?: number;
                 OriginatingTo?: string;
+                ThreadParentId?: string;
               };
             },
           ]
@@ -347,6 +348,7 @@ describe("Telegram native command dispatch routing", () => {
           CommandTargetSessionKey: "agent:main:telegram:group:-1001234567890:topic:42",
           MessageThreadId: 42,
           OriginatingTo: "telegram:-1001234567890:topic:42",
+          ThreadParentId: "-1001234567890",
         },
         "topic dispatch context",
       );

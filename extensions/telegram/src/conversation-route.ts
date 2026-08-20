@@ -45,7 +45,7 @@ type TelegramConversationRouteResult = {
   bindingMode: TelegramConversationBindingMode;
 };
 
-export function resolveTelegramConversationRoute(params: {
+type ResolveTelegramConversationRouteParams = {
   cfg: OpenClawConfig;
   accountId: string;
   chatId: number | string;
@@ -53,7 +53,12 @@ export function resolveTelegramConversationRoute(params: {
   threadSpec: TelegramThreadSpec;
   senderId?: string | number | null;
   topicAgentId?: string | null;
-}): TelegramConversationRouteResult {
+};
+
+function resolveTelegramConversationRouteWithRuntimePolicy(
+  params: ResolveTelegramConversationRouteParams,
+  touchRuntimeBinding: boolean,
+): TelegramConversationRouteResult {
   const resolvedThreadId = params.threadSpec.id;
   const conversationId = buildTelegramConversationId({
     chatId: params.chatId,
@@ -141,6 +146,7 @@ export function resolveTelegramConversationRoute(params: {
   const runtimeBindingConversationId = conversationId;
   const runtimeRoute = resolveRuntimeConversationBindingRoute({
     route,
+    touchBinding: touchRuntimeBinding,
     conversation: {
       channel: "telegram",
       accountId: params.accountId,
@@ -163,6 +169,19 @@ export function resolveTelegramConversationRoute(params: {
     route,
     bindingMode,
   };
+}
+
+export function resolveTelegramConversationRoute(
+  params: ResolveTelegramConversationRouteParams,
+): TelegramConversationRouteResult {
+  return resolveTelegramConversationRouteWithRuntimePolicy(params, true);
+}
+
+/** Revalidates route ownership without refreshing runtime-binding liveness. */
+export function inspectTelegramConversationRoute(
+  params: ResolveTelegramConversationRouteParams,
+): TelegramConversationRouteResult {
+  return resolveTelegramConversationRouteWithRuntimePolicy(params, false);
 }
 
 export function resolveTelegramConversationBaseSessionKey(

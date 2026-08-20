@@ -926,11 +926,13 @@ async function initSessionStateAttemptLocked(
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };
   }
-  if (!isSystemEvent && sessionCtxForState.InboundAccessAuthorized === true) {
-    const routeContext = conversationRouteContextFromMsgContext(sessionCtxForState);
-    if (routeContext) {
-      sessionEntry.conversationRouteContext = routeContext;
-    }
+  if (
+    !isSystemEvent &&
+    sessionCtxForState.InboundAccessAuthorized === true &&
+    sessionCtxForState.ConversationRouteContextAuthoritative !== false
+  ) {
+    sessionEntry.conversationRouteContext =
+      conversationRouteContextFromMsgContext(sessionCtxForState);
   }
   if (isSystemEvent && !isThread) {
     sessionEntry = {

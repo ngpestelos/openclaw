@@ -94,6 +94,24 @@ describe("runtime conversation binding route", () => {
     });
   });
 
+  it("inspects a runtime-bound route without touching the binding", () => {
+    const { touch } = registerAdapter(createBinding());
+
+    const result = resolveRuntimeConversationBindingRoute({
+      route: createRoute(),
+      touchBinding: false,
+      conversation: {
+        channel: "demo",
+        accountId: "default",
+        conversationId: "room-1",
+      },
+    });
+
+    expect(touch).not.toHaveBeenCalled();
+    expect(result.route.agentId).toBe("review");
+    expect(result.boundSessionKey).toBe("agent:review:acp:session-1");
+  });
+
   it("touches plugin-owned bindings without rewriting the channel route", () => {
     const route = createRoute();
     const binding = createBinding({

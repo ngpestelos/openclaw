@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentBindingMatch } from "../config/types.agents.js";
+import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
+import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
 
 const fallbackBinding = {
@@ -7,6 +9,9 @@ const fallbackBinding = {
   agentId: "main",
   match: { channel: "reef", accountId: "default" },
 };
+
+beforeEach(() => resetPluginRuntimeStateForTest());
+afterEach(() => resetPluginRuntimeStateForTest());
 
 describe("isConversationRouteEligibleForAgent", () => {
   it.each([
@@ -96,6 +101,61 @@ describe("isConversationRouteEligibleForAgent", () => {
         },
       }),
     ).toBe(false);
+  });
+
+  it.each([
+    { name: "uses an exact plugin owner", owner: { agentId: "finance" }, expected: true },
+    { name: "fails closed when the plugin recognizes no owner", owner: null, expected: false },
+    { name: "falls back when the plugin declines", owner: undefined, expected: false },
+  ] as const)("$name", ({ owner, expected }) => {
+    const resolveConversationRouteOwner = vi.fn(() => owner);
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "telegram" }),
+            messaging: { resolveConversationRouteOwner },
+          },
+        },
+      ]),
+    );
+    const config = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "telegram", accountId: "default" },
+        },
+      ],
+    };
+    const conversation = {
+      channel: "telegram",
+      accountId: "default",
+      kind: "group" as const,
+      peerId: "-100123:topic:42",
+      threadId: "42",
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "finance", conversation })).toBe(
+      expected,
+    );
+    if (owner === undefined) {
+      expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+        true,
+      );
+    }
+    expect(resolveConversationRouteOwner).toHaveBeenCalledWith({
+      cfg: config,
+      accountId: "default",
+      conversation: {
+        kind: "group",
+        peerId: "-100123:topic:42",
+        threadId: "42",
+      },
+    });
   });
 
   it("does not let an unrelated contextual binding revive a reassigned route", () => {
@@ -189,6 +249,107 @@ describe("isConversationRouteEligibleForAgent", () => {
       false,
     );
     expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+      false,
+    );
+  });
+
+  it.each(["direct", "group"] as const)(
+    "does not apply Discord guild bindings to a %s conversation",
+    (kind) => {
+      const config = {
+        agents: { entries: { main: {}, finance: {} } },
+        bindings: [
+          {
+            type: "route" as const,
+            agentId: "finance",
+            match: { channel: "discord", accountId: "default", guildId: "guild-a" },
+          },
+          {
+            type: "route" as const,
+            agentId: "main",
+            match: { channel: "discord", accountId: "default" },
+          },
+        ],
+      };
+
+      expect(
+        isConversationRouteEligibleForAgent({
+          config,
+          agentId: "main",
+          conversation: {
+            channel: "discord",
+            accountId: "default",
+            kind,
+            peerId: kind === "direct" ? "user-a" : "group-dm-a",
+          },
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it("ignores a compound contextual binding for a different peer", () => {
+    const config = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: {
+            channel: "discord",
+            accountId: "default",
+            peer: { kind: "channel" as const, id: "finance-room" },
+            guildId: "guild-a",
+          },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "discord", accountId: "default" },
+        },
+      ],
+    };
+
+    expect(
+      isConversationRouteEligibleForAgent({
+        config,
+        agentId: "main",
+        conversation: {
+          channel: "discord",
+          accountId: "default",
+          kind: "channel",
+          peerId: "general-room",
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps context-free Slack direct conversations guarded by team bindings", () => {
+    const config = {
+      agents: { entries: { main: {}, finance: {} } },
+      bindings: [
+        {
+          type: "route" as const,
+          agentId: "finance",
+          match: { channel: "slack", accountId: "default", teamId: "team-a" },
+        },
+        {
+          type: "route" as const,
+          agentId: "main",
+          match: { channel: "slack", accountId: "default" },
+        },
+      ],
+    };
+    const conversation = {
+      channel: "slack",
+      accountId: "default",
+      kind: "direct" as const,
+      peerId: "user-a",
+    };
+
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "main", conversation })).toBe(
+      false,
+    );
+    expect(isConversationRouteEligibleForAgent({ config, agentId: "finance", conversation })).toBe(
       false,
     );
   });

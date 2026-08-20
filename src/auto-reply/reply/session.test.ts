@@ -494,6 +494,7 @@ describe("initSessionState guarded initialization", () => {
         OriginatingChannel: "msteams",
         SessionKey: sessionKey,
         InboundAccessAuthorized: true,
+        ConversationRouteContextAuthoritative: false,
       },
       cfg,
     });
@@ -502,6 +503,41 @@ describe("initSessionState guarded initialization", () => {
     expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toEqual({
       teamId: "team-a",
     });
+  });
+
+  it("clears stale route facts for a newly admitted contextless conversation", async () => {
+    const storePath = await createStorePath("openclaw-session-route-context-clear-");
+    const sessionKey = "agent:main:main";
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+    await initSessionState({
+      ctx: {
+        Body: "hello ops",
+        ChatType: "channel",
+        From: "discord:channel:ops",
+        To: "channel:ops",
+        OriginatingChannel: "discord",
+        SessionKey: sessionKey,
+        GroupSpace: "guild-a",
+        InboundAccessAuthorized: true,
+      },
+      cfg,
+    });
+
+    const direct = await initSessionState({
+      ctx: {
+        Body: "hello directly",
+        ChatType: "direct",
+        From: "discord:user-a",
+        To: "user-a",
+        OriginatingChannel: "discord",
+        SessionKey: sessionKey,
+        InboundAccessAuthorized: true,
+      },
+      cfg,
+    });
+
+    expect(direct.sessionEntry.conversationRouteContext).toBeUndefined();
+    expect(loadSessionEntry({ storePath, sessionKey })?.conversationRouteContext).toBeUndefined();
   });
 
   it("registers per-group ambient visibility when direct messages use isolated sessions", async () => {

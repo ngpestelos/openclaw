@@ -88,6 +88,7 @@ export async function buildDiscordMessageProcessContext(params: {
     messageChannelId,
     isGuildMessage,
     isDirectMessage,
+    isGroupDm,
     baseText,
     preflightAudioTranscript,
     threadChannel,
@@ -398,7 +399,7 @@ export async function buildDiscordMessageProcessContext(params: {
       isBot: author.bot && !sender.isPluralKit ? true : undefined,
     },
     conversation: {
-      kind: isDirectMessage ? "direct" : "channel",
+      kind: isDirectMessage ? "direct" : isGroupDm ? "group" : "channel",
       id: messageChannelId,
       nativeChannelId: messageChannelId,
       avatar: ctx.conversationAvatar,

@@ -51,6 +51,7 @@ describe("buildTelegramMessageContext per-topic agentId routing", () => {
 
     expect(ctx?.ctxPayload?.SessionKey).toContain("agent:zu:");
     expect(ctx?.ctxPayload?.SessionKey).toContain("telegram:group:-1001234567890:topic:3");
+    expect(ctx?.ctxPayload?.ThreadParentId).toBe("-1001234567890");
   });
 
   it("keeps the effective main group scope for a topic-specific agent", async () => {
@@ -143,5 +144,6 @@ describe("buildTelegramMessageContext per-topic agentId routing", () => {
     });
 
     expect(ctx?.ctxPayload?.SessionKey).toContain("agent:support:");
+    expect(ctx?.ctxPayload?.ThreadParentId).toBeUndefined();
   });
 });

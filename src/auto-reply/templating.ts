@@ -413,6 +413,8 @@ export type MsgContext = Partial<CanonicalInboundText> & {
    * Correlation interceptors must fail closed when this proof is absent.
    */
   InboundAccessAuthorized?: boolean;
+  /** False for internal turns that cannot authoritatively replace persisted route context. */
+  ConversationRouteContextAuthoritative?: boolean;
   /**
    * Internal flag for channels that emit message_received through a channel-specific
    * privacy gate before entering the shared reply dispatcher.

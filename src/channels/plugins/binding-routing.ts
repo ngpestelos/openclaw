@@ -132,6 +132,8 @@ export function resolveConfiguredBindingRoute(
 export function resolveRuntimeConversationBindingRoute(
   params: {
     route: ResolvedAgentRoute;
+    /** Set false for read-only ownership checks that must not extend binding liveness. */
+    touchBinding?: boolean;
   } & ConfiguredBindingRouteConversationInput,
 ): RuntimeConversationBindingRouteResult {
   const bindingRecord = getSessionBindingService().resolveByConversation(
@@ -156,7 +158,9 @@ export function resolveRuntimeConversationBindingRoute(
     };
   }
 
-  getSessionBindingService().touch(bindingRecord.bindingId);
+  if (params.touchBinding !== false) {
+    getSessionBindingService().touch(bindingRecord.bindingId);
+  }
   if (isPluginOwnedRuntimeBindingRecord(bindingRecord)) {
     // Plugin-owned binding records are observed but not route-rewritten by core; the owning
     // plugin is responsible for its runtime target handoff.

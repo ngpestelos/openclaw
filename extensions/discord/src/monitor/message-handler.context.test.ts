@@ -55,6 +55,20 @@ describe("discord buildDiscordMessageProcessContext sender bot status", () => {
     expect(result?.ctxPayload.GroupSpace).toBe("guild-id");
   });
 
+  it("preserves group-DM conversation kind", async () => {
+    const ctx = await createBaseDiscordMessageContext({
+      data: { guild: null },
+      isGuildMessage: false,
+      isDirectMessage: false,
+      isGroupDm: true,
+    });
+
+    const result = await buildDiscordMessageProcessContext({ ctx, text: "hi", mediaList: [] });
+
+    expect(result?.ctxPayload.ChatType).toBe("group");
+    expect(result?.ctxPayload.GroupSpace).toBeUndefined();
+  });
+
   it("forwards bot author status to ctxPayload.SenderIsBot", async () => {
     const ctx = await createBaseDiscordMessageContext({
       author: { id: "U1", username: "alice", discriminator: "0", globalName: "Alice", bot: true },
