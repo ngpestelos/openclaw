@@ -202,16 +202,37 @@ function startPendingOutboundDeliveryRecovery(params: {
       if (stopped) {
         return;
       }
-      const { drainPendingDeliveriesCore, recoverPendingDeliveries } =
-        await import("../infra/outbound/delivery-queue-recovery.js");
-      const { deliverOutboundPayloadsInternal } = await import("../infra/outbound/deliver.js");
+      const [
+        { drainPendingDeliveriesCore, recoverPendingDeliveries },
+        { deliverOutboundPayloadsInternal },
+        { assertQueuedConversationPlatformSendAuthorized },
+      ] = await Promise.all([
+        import("../infra/outbound/delivery-queue-recovery.js"),
+        import("../infra/outbound/deliver.js"),
+        import("./conversation-route-ownership.js"),
+      ]);
       if (stopped) {
         return;
       }
+      const deliver = (delivery: Parameters<typeof deliverOutboundPayloadsInternal>[0]) => {
+        const completion = delivery.deliveryCompletion;
+        return deliverOutboundPayloadsInternal({
+          ...delivery,
+          ...(completion?.kind === "conversation"
+            ? {
+                onPlatformSendAdmission: async () =>
+                  assertQueuedConversationPlatformSendAuthorized({
+                    config: delivery.cfg,
+                    completion,
+                  }),
+              }
+            : {}),
+        });
+      };
       logRecovery ??= params.log.child("delivery-recovery");
       if (startup) {
         await recoverPendingDeliveries({
-          deliver: deliverOutboundPayloadsInternal,
+          deliver,
           log: logRecovery,
           cfg: params.cfg,
         });
@@ -224,7 +245,7 @@ function startPendingOutboundDeliveryRecovery(params: {
         logLabel: "Outbound delivery retry",
         cfg: getRuntimeConfig(),
         log: logRecovery,
-        deliver: deliverOutboundPayloadsInternal,
+        deliver,
         selectEntry: () => ({ match: true, bypassBackoff: false }),
       });
     }).catch((err: unknown) => params.log.error(`Delivery recovery failed: ${String(err)}`));

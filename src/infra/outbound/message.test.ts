@@ -337,6 +337,7 @@ describe("sendMessage", () => {
   it("can require queue persistence without provider unknown-send reconciliation", async () => {
     const onDeliveryIntent = vi.fn();
     const onDeliveryResult = vi.fn();
+    const onPlatformSendAdmission = vi.fn(async () => undefined);
 
     await sendMessage({
       cfg: {},
@@ -352,6 +353,7 @@ describe("sendMessage", () => {
         operationId: "operation-1",
       },
       onDeliveryIntent,
+      onPlatformSendAdmission,
       onDeliveryResult,
     });
 
@@ -363,6 +365,7 @@ describe("sendMessage", () => {
         agentId: "main",
         operationId: "operation-1",
       },
+      onPlatformSendAdmission,
       onDeliveryResult,
     });
     const wrappedIntent = deliveryParams.onDeliveryIntent as

@@ -2240,6 +2240,45 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
+  it("revalidates caller authority after queue persistence but before platform dispatch", async () => {
+    const order: string[] = [];
+    const rejection = new PlatformMessageNotDispatchedError(
+      "conversation owner changed before delivery",
+      { cause: new Error("route reassigned"), retryable: false },
+    );
+    const sendMatrix = vi.fn();
+    completionMocks.rejectDurableDelivery.mockImplementationOnce(() => {
+      order.push("reject-owner");
+    });
+    queueMocks.ackDelivery.mockImplementationOnce(async () => {
+      order.push("ack-queue");
+    });
+
+    await expect(
+      deliverMatrix({
+        deps: { matrix: sendMatrix },
+        queuePolicy: "required",
+        deliveryCompletion: {
+          kind: "conversation",
+          agentId: "main",
+          operationId: "operation-owner-changed",
+        },
+        onPlatformSendAdmission: async () => {
+          order.push("revalidate-owner");
+          throw rejection;
+        },
+      }),
+    ).rejects.toThrow(rejection.message);
+
+    expect(sendMatrix).not.toHaveBeenCalled();
+    expect(order).toEqual(["revalidate-owner", "reject-owner", "ack-queue"]);
+    expect(completionMocks.rejectDurableDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "operation-owner-changed" }),
+      rejection.message,
+      undefined,
+    );
+  });
+
   it("normalizes an empty permanent rejection reason before durable retirement", async () => {
     const sendMatrix = vi.fn().mockRejectedValueOnce(
       new PlatformMessageNotDispatchedError("   ", {

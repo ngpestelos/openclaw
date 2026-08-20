@@ -459,12 +459,8 @@ describe("conversation registry", () => {
   });
 
   it("keeps a live binding when newer historical activity has no current entry", async () => {
-    const liveSessionKey = "agent:main:reef:direct:peer-a-live";
-    const staleSessionKey = "agent:main:reef:direct:peer-a-stale";
-    for (const [sessionKey, sessionId] of [
-      [liveSessionKey, "live-session"],
-      [staleSessionKey, "stale-session"],
-    ] as const) {
+    const sessionKey = "agent:main:reef:direct:peer-a";
+    for (const sessionId of ["stale-session", "live-session"] as const) {
       await upsertSessionEntry(
         { agentId: "main", sessionKey, storePath },
         {
@@ -492,23 +488,39 @@ describe("conversation registry", () => {
       database.db,
       db
         .updateTable("session_conversations")
-        .set({ last_seen_at: liveLastSeenAt + 1 })
+        .set({
+          last_seen_at: liveLastSeenAt + 1,
+          route_context_json: JSON.stringify({
+            version: 1,
+            observedAt: liveLastSeenAt + 1,
+            context: { teamId: "stale-team" },
+          }),
+        })
         .where("session_id", "=", "stale-session"),
     );
     executeSqliteQuerySync(
       database.db,
-      db.deleteFrom("session_nodes").where("session_key", "=", staleSessionKey),
+      db
+        .updateTable("session_conversations")
+        .set({ route_context_json: null })
+        .where("session_id", "=", "live-session"),
     );
 
-    expect(
-      listConversations({ agentId: "main", storePath }, { channel: "reef", limit: 1 })[0],
-    ).toMatchObject({
+    const mergedConversation = listConversations(
+      { agentId: "main", storePath },
+      {
+        channel: "reef",
+        limit: 1,
+      },
+    )[0];
+    expect(mergedConversation).toMatchObject({
       target: "reef:peer-a",
       sessionId: "live-session",
-      sessionKey: liveSessionKey,
-      routeContext: { teamId: "live-team" },
-      lastSeenAt: liveLastSeenAt,
+      sessionKey,
+      lastSeenAt: liveLastSeenAt + 1,
     });
+    expect(mergedConversation).not.toHaveProperty("routeContext");
+    expect(mergedConversation).not.toHaveProperty("routeContextObserved");
   });
 
   it("resolves historical addresses through the current session binding after reset", async () => {

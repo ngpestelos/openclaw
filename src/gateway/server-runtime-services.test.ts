@@ -56,6 +56,7 @@ const hoisted = vi.hoisted(() => {
     deliverQueuedSessionDelivery: vi.fn(async () => undefined),
     settleQueuedSessionDelivery: vi.fn(async () => undefined),
     deliverOutboundPayloads: vi.fn(),
+    assertQueuedConversationPlatformSendAuthorized: vi.fn(),
   };
 });
 
@@ -78,6 +79,11 @@ vi.mock("../infra/outbound/deliver.js", () => ({
 vi.mock("../infra/outbound/delivery-queue-recovery.js", () => ({
   recoverPendingDeliveries: hoisted.recoverPendingDeliveries,
   drainPendingDeliveriesCore: hoisted.drainPendingDeliveries,
+}));
+
+vi.mock("./conversation-route-ownership.js", () => ({
+  assertQueuedConversationPlatformSendAuthorized:
+    hoisted.assertQueuedConversationPlatformSendAuthorized,
 }));
 
 vi.mock("../infra/session-delivery-queue-runtime.js", () => ({
@@ -118,6 +124,7 @@ describe("server-runtime-services", () => {
     hoisted.startHeartbeatRunner.mockClear();
     hoisted.startChannelHealthMonitor.mockClear();
     hoisted.startSessionUpstreamMonitor.mockClear();
+    hoisted.assertQueuedConversationPlatformSendAuthorized.mockClear();
     hoisted.stopSessionUpstreamMonitor.mockClear();
     hoisted.stopSessionDeliveryRuntime.mockClear();
     hoisted.startSessionDeliveryRuntime.mockClear();
@@ -356,9 +363,33 @@ describe("server-runtime-services", () => {
       throw new Error("Expected delivery recovery log children");
     }
     expect(hoisted.recoverPendingDeliveries).toHaveBeenCalledWith({
-      deliver: hoisted.deliverOutboundPayloads,
+      deliver: expect.any(Function),
       cfg: {},
       log: deliveryLog,
+    });
+    const recover = hoisted.recoverPendingDeliveries.mock.calls[0]?.[0];
+    hoisted.deliverOutboundPayloads.mockImplementationOnce(async (delivery) => {
+      await delivery.onPlatformSendAdmission?.({ channel: "reef", to: "reef:molty" });
+      return [];
+    });
+    await recover?.deliver({
+      cfg: {},
+      channel: "reef",
+      to: "reef:molty",
+      payloads: [],
+      deliveryCompletion: {
+        kind: "conversation",
+        agentId: "main",
+        operationId: "operation-recovered",
+      },
+    });
+    expect(hoisted.assertQueuedConversationPlatformSendAuthorized).toHaveBeenCalledWith({
+      config: {},
+      completion: {
+        kind: "conversation",
+        agentId: "main",
+        operationId: "operation-recovered",
+      },
     });
     expect(hoisted.recoverPendingRestartContinuationDeliveries).toHaveBeenCalledWith({
       deps: {},
@@ -550,7 +581,7 @@ describe("server-runtime-services", () => {
     const [drain] = hoisted.drainPendingDeliveries.mock.calls[0] ?? [];
     expect(drain).toMatchObject({
       drainKey: "gateway:outbound",
-      deliver: hoisted.deliverOutboundPayloads,
+      deliver: expect.any(Function),
     });
     expect(drain?.selectEntry({ channel: "discord" } as never, Date.now())).toEqual({
       match: true,

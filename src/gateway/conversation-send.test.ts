@@ -71,6 +71,7 @@ function createDeps() {
       to: "molty",
       durability: "required",
     });
+    await (input.onPlatformSendAdmission as () => Promise<void>)();
     return sentResult();
   });
   return {
@@ -177,6 +178,7 @@ describe("runGatewayConversationSend", () => {
       }),
     );
     expect(deps.runMessageActionMock.mock.calls[0]?.[0]?.params).not.toHaveProperty("accountId");
+    expect(deps.resolveConversation).toHaveBeenCalledTimes(2);
     expect(result).toEqual({
       status: "sent",
       conversationRef: conversation.conversationRef,

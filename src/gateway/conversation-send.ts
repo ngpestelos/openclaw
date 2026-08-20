@@ -18,7 +18,10 @@ import {
   ConversationInputError,
   ConversationOperationConflictError,
 } from "./conversation-errors.js";
-import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
+import {
+  assertConversationPlatformSendAuthorized,
+  isConversationRouteEligibleForAgent,
+} from "./conversation-route-ownership.js";
 
 type ConversationSendDeps = ConversationDeliveryDeps & {
   resolveConversation: typeof resolveConversation;
@@ -129,6 +132,14 @@ export async function runGatewayConversationSend(
       operationId: params.operationId,
       operationKind: "send",
       ...(operation ? { operation } : {}),
+      onPlatformSendAdmission: async () =>
+        assertConversationPlatformSendAuthorized({
+          config: params.config,
+          agentId: params.agentId,
+          conversationRef: params.conversationRef,
+          scope,
+          resolveConversation: deps.resolveConversation,
+        }),
       ...(params.signal ? { signal: params.signal } : {}),
     });
     return {

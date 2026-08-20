@@ -109,6 +109,11 @@ function maxConversationRowId() {
 type MappedConversationRow = {
   record: ConversationRecord;
   ownedAssociation: boolean;
+  currentBinding?: {
+    sessionId: string;
+    sessionKey: string;
+    role: NonNullable<ConversationRecord["role"]>;
+  };
 };
 
 function mapConversationRow(
@@ -120,6 +125,7 @@ function mapConversationRow(
     conversation_updated_at: number;
     first_seen_at: number | null;
     kind: string;
+    associated_session_id: string | null;
     associated_session_key: string | null;
     label: string | null;
     last_seen_at: number | null;
@@ -155,7 +161,9 @@ function mapConversationRow(
     ownedAssociation && row.current_entry_json
       ? parseSessionEntryJson({ entry_json: row.current_entry_json })
       : null;
-  const hasCurrentBinding = currentEntry?.sessionId === row.current_session_id;
+  const hasCurrentNode = currentEntry?.sessionId === row.current_session_id;
+  const associationIsCurrent =
+    hasCurrentNode && row.associated_session_id === row.current_session_id;
   const storedRouteContext = ownedAssociation
     ? parseStoredConversationRouteContext(
         row.route_context_json ? safeParseJsonRecord(row.route_context_json) : undefined,
@@ -164,6 +172,19 @@ function mapConversationRow(
     : undefined;
   return {
     ownedAssociation,
+    ...(ownedAssociation &&
+    role &&
+    hasCurrentNode &&
+    row.current_session_id &&
+    row.current_session_key
+      ? {
+          currentBinding: {
+            sessionId: row.current_session_id,
+            sessionKey: row.current_session_key,
+            role,
+          },
+        }
+      : {}),
     record: {
       conversationRef: row.conversation_id,
       channel: row.channel,
@@ -180,7 +201,7 @@ function mapConversationRow(
       // window row may be historical after reset, rebind, or deletion.
       ...(ownedAssociation &&
       role &&
-      hasCurrentBinding &&
+      associationIsCurrent &&
       row.current_session_id &&
       row.current_session_key
         ? {
@@ -270,6 +291,7 @@ function selectConversationRows(
       "sc.route_context_json",
       "sc.first_seen_at",
       "sc.last_seen_at",
+      "s.session_id as associated_session_id",
       "s.session_key as associated_session_key",
       "sn.current_session_id as current_session_id",
       "sn.entry_json as current_entry_json",
@@ -307,7 +329,11 @@ function selectConversationRows(
     ) {
       // Keep the newest address activity while carrying forward the live binding
       // when a newer historical association has no current session entry.
-      const { routeContext: _staleRouteContext, ...existingRecord } = existing.record;
+      const {
+        routeContext: _staleRouteContext,
+        routeContextObserved: _staleRouteContextObserved,
+        ...existingRecord
+      } = existing.record;
       unique.set(mapped.record.conversationRef, {
         ...existing,
         record: {
@@ -315,6 +341,7 @@ function selectConversationRows(
           sessionId: mapped.record.sessionId,
           sessionKey: mapped.record.sessionKey,
           role: mapped.record.role,
+          ...(mapped.record.routeContextObserved ? { routeContextObserved: true as const } : {}),
           ...(mapped.record.routeContext ? { routeContext: mapped.record.routeContext } : {}),
         },
       });
@@ -322,7 +349,15 @@ function selectConversationRows(
   }
   const cursor = stableScan ? pageRows.at(-1)?.conversation_rowid : undefined;
   return {
-    conversations: [...unique.values()].map((entry) => entry.record),
+    conversations: [...unique.values()].map(({ currentBinding, record }) => {
+      if (record.sessionId || !currentBinding) {
+        return record;
+      }
+      delete record.routeContext;
+      delete record.routeContextObserved;
+      Object.assign(record, currentBinding);
+      return record;
+    }),
     ...(cursor !== undefined ? { cursor } : {}),
   };
 }

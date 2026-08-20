@@ -177,6 +177,8 @@ export type DeliverOutboundPayloadsCoreParams = {
   /** @internal Reports the effective payload only after an identified platform send. */
   onDeliveredPayload?: (payload: NormalizedOutboundPayload) => void;
   onPayloadDeliveryOutcome?: (outcome: OutboundPayloadDeliveryOutcome) => void;
+  /** @internal Revalidates caller authority before queue state records platform-send start. */
+  onPlatformSendAdmission?: (route: PlatformSendRoute) => Promise<void>;
   /** @internal Runs after each identified platform result, before further fallible work. */
   onDeliveryResult?: (result: OutboundDeliveryResult) => Promise<void> | void;
   /** @internal Reports a settled native payload for post-terminal message_sent observation. */

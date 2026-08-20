@@ -159,6 +159,10 @@ function persistIntent(input: Record<string, unknown>): void {
   });
 }
 
+async function admitPlatformSend(input: Record<string, unknown>): Promise<void> {
+  await (input.onPlatformSendAdmission as () => Promise<void>)();
+}
+
 describe("runGatewayConversationTurn", () => {
   it("creates a context binding only when a discovered address starts a turn", async () => {
     const deps = createDeps();
@@ -171,6 +175,7 @@ describe("runGatewayConversationTurn", () => {
     deps.resolveConversation.mockReturnValueOnce(unbound).mockReturnValue(conversation);
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       persistIntent(input);
+      await admitPlatformSend(input);
       return sentResult();
     }) as never;
 
@@ -210,6 +215,7 @@ describe("runGatewayConversationTurn", () => {
         suppressTranscriptMirror: true,
       });
       persistIntent(input);
+      await admitPlatformSend(input);
       capture = claimPendingConversationTurnReply({
         agentId: "main",
         conversationRef: conversation.conversationRef,
@@ -272,6 +278,7 @@ describe("runGatewayConversationTurn", () => {
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       expect(input).toMatchObject({ preparedMessageId: "reef-authoritative-a" });
       persistIntent(input);
+      await admitPlatformSend(input);
       capture = claimPendingConversationTurnReply({
         agentId: "main",
         conversationRef: conversation.conversationRef,
@@ -656,6 +663,7 @@ describe("runGatewayConversationTurn", () => {
     const deps = createDeps();
     deps.runMessageAction = vi.fn(async (input: Record<string, unknown>) => {
       persistIntent(input);
+      await admitPlatformSend(input);
       return sentResult("reef-different-id");
     }) as never;
 
@@ -694,6 +702,7 @@ describe("runGatewayConversationTurn", () => {
         to: "molty",
         durability: "required",
       });
+      await admitPlatformSend(input);
       return {
         ...sentResult(),
         sendResult: { ...sentResult().sendResult, deliveryStatus: "suppressed" as const },

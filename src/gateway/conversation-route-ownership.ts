@@ -7,8 +7,16 @@ import {
 } from "../channels/plugins/binding-routing.js";
 import { getLoadedChannelPlugin, normalizeChannelId } from "../channels/plugins/index.js";
 import { listRouteBindings } from "../config/bindings.js";
-import type { ConversationRecord } from "../config/sessions/conversation-registry.js";
+import { getConversationDeliveryOperation } from "../config/sessions/conversation-delivery-store.js";
+import {
+  resolveConversation,
+  resolveConversationRegistryScope,
+  type ConversationRecord,
+  type ConversationRegistryScope,
+} from "../config/sessions/conversation-registry.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { PlatformMessageNotDispatchedError } from "../infra/outbound/deliver-types.js";
+import type { DurableDeliveryCompletion } from "../infra/outbound/delivery-completion.js";
 import { hasGlobalPluginHook } from "../plugins/hook-runner-global.js";
 import { normalizeAccountId } from "../routing/account-id.js";
 import { normalizeRouteBindingId } from "../routing/binding-scope.js";
@@ -244,4 +252,58 @@ export function isConversationRouteEligibleForAgent(params: {
     resolvedOwner,
     unknownContext,
   );
+}
+
+function rejectConversationPlatformSend(reference: string): never {
+  const message = `Conversation is no longer available to this agent: ${reference}`;
+  throw new PlatformMessageNotDispatchedError(message, {
+    cause: new Error(message),
+    retryable: false,
+  });
+}
+
+export function assertConversationPlatformSendAuthorized(params: {
+  config: OpenClawConfig;
+  agentId: string;
+  conversationRef: string;
+  scope: ConversationRegistryScope;
+  resolveConversation?: typeof resolveConversation;
+}): void {
+  const conversation = (params.resolveConversation ?? resolveConversation)(
+    params.scope,
+    params.conversationRef,
+  );
+  if (
+    !conversation ||
+    !isConversationRouteEligibleForAgent({
+      config: params.config,
+      agentId: params.agentId,
+      conversation,
+    })
+  ) {
+    rejectConversationPlatformSend(params.conversationRef);
+  }
+}
+
+export function assertQueuedConversationPlatformSendAuthorized(params: {
+  config: OpenClawConfig;
+  completion: Extract<DurableDeliveryCompletion, { kind: "conversation" }>;
+}): void {
+  const scope = {
+    ...resolveConversationRegistryScope({
+      config: params.config,
+      agentId: params.completion.agentId,
+    }),
+    ...(params.completion.storePath ? { storePath: params.completion.storePath } : {}),
+  };
+  const operation = getConversationDeliveryOperation(scope, params.completion.operationId);
+  if (!operation) {
+    rejectConversationPlatformSend(params.completion.operationId);
+  }
+  assertConversationPlatformSendAuthorized({
+    config: params.config,
+    agentId: params.completion.agentId,
+    conversationRef: operation.conversationRef,
+    scope,
+  });
 }

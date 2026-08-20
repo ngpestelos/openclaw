@@ -24,7 +24,10 @@ import {
   ConversationInputError,
   ConversationOperationConflictError,
 } from "./conversation-errors.js";
-import { isConversationRouteEligibleForAgent } from "./conversation-route-ownership.js";
+import {
+  assertConversationPlatformSendAuthorized,
+  isConversationRouteEligibleForAgent,
+} from "./conversation-route-ownership.js";
 
 type ConversationTurnDeps = ConversationDeliveryDeps & {
   registerPendingConversationTurn: typeof registerPendingConversationTurn;
@@ -338,6 +341,14 @@ export async function runGatewayConversationTurn(
       operationKind: "turn",
       operation: begun.record,
       preparedMessageId,
+      onPlatformSendAdmission: async () =>
+        assertConversationPlatformSendAuthorized({
+          config: params.config,
+          agentId: params.agentId,
+          conversationRef: params.conversationRef,
+          scope,
+          resolveConversation: deps.resolveConversation,
+        }),
     });
     if (sent.deliveryStatus !== "sent") {
       pending.cancel();

@@ -96,6 +96,8 @@ type OutboundSendContext = {
   deliveryCompletion?: DurableDeliveryCompletion;
   /** Runs after queue persistence and before platform I/O. */
   onDeliveryIntent?: (intent: DurableMessageSendIntent) => void;
+  /** Revalidates caller authority at the final pre-platform boundary. */
+  onPlatformSendAdmission?: () => Promise<void>;
   /** Runs on identified platform evidence before queue acknowledgement. */
   onDeliveryResult?: (result: OutboundDeliveryResult) => Promise<void> | void;
   /** Runs once a plugin action accepted the send, before transcript mirroring. */
@@ -194,6 +196,7 @@ async function sendCoreMessage(params: {
     deliveryCompletion: params.ctx.deliveryCompletion,
     requireUnknownSendReconciliation: params.ctx.requireQueuePersistence ? false : undefined,
     onDeliveryIntent: params.ctx.onDeliveryIntent,
+    onPlatformSendAdmission: params.ctx.onPlatformSendAdmission,
     onDeliveryResult: params.ctx.onDeliveryResult,
     onDeliveredPayload: (payload) => deliveredPayloads.push(payload),
   });
