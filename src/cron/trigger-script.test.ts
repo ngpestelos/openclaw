@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useAutoCleanupTempDirTracker } from "../../test/helpers/temp-dir.js";
 import { wrapToolWithBeforeToolCallHook } from "../agents/agent-tools.before-tool-call.js";
 import { BEFORE_TOOL_CALL_HOOK_CONTEXT } from "../agents/before-tool-call-metadata.js";
 import type { CodeModeHeadlessResult } from "../agents/code-mode.js";
 import type { AnyAgentTool } from "../agents/tools/common.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { captureFinalCodexCronCreatorToolAllowlist } from "../plugin-sdk/codex-mcp-projection.js";
 import { createCronScriptRuntime } from "./trigger-script.js";
 
 type EvaluatorDeps = Parameters<typeof createCronScriptRuntime>[0];
@@ -11,6 +13,7 @@ type HeadlessParams = Parameters<NonNullable<EvaluatorDeps["runHeadless"]>>[0];
 type PrepareParams = Parameters<NonNullable<EvaluatorDeps["prepareRuntime"]>>[0];
 
 const beforeToolCallTesting = { BEFORE_TOOL_CALL_HOOK_CONTEXT };
+const tempDirs = useAutoCleanupTempDirTracker(afterEach);
 
 function completed(params: { value: unknown; output?: unknown[] }): CodeModeHeadlessResult {
   return {
@@ -69,6 +72,48 @@ function createCronTriggerEvaluator(deps: EvaluatorDeps) {
 }
 
 describe("cron trigger script evaluator", () => {
+  it("executes the documented exec call from a Codex-captured scheduler allowlist", async () => {
+    const workspaceDir = tempDirs.make("openclaw-cron-codex-alias-");
+    const captured: Parameters<typeof captureFinalCodexCronCreatorToolAllowlist>[0] = [];
+    const captureRef: Parameters<typeof captureFinalCodexCronCreatorToolAllowlist>[1] = {};
+    const creatorTools = [
+      "gateway_exec",
+      "node_exec",
+      "sandbox_exec",
+      "gateway_process",
+      "sandbox_process",
+    ].map(
+      (name) =>
+        ({
+          name,
+          label: name,
+          description: name,
+          parameters: { type: "object", properties: {} },
+          execute: vi.fn(),
+        }) satisfies AnyAgentTool,
+    );
+    await captureFinalCodexCronCreatorToolAllowlist(captured, captureRef, creatorTools);
+    const toolsAllow = captured.map((entry) => (typeof entry === "string" ? entry : entry.name));
+
+    expect(toolsAllow).toEqual(["exec", "process"]);
+    const config = {
+      agents: { defaults: { workspace: workspaceDir } },
+      tools: { exec: { host: "gateway", security: "full", ask: "off" } },
+    } as OpenClawConfig;
+    const evaluate = createCronScriptRuntime({ config }).evaluateTrigger;
+
+    await expect(
+      evaluate({
+        jobId: "job-codex-exec-alias",
+        script:
+          'await tools.call("exec", { command: "printf openclaw-cron-alias-ok" }); return { fire: false };',
+        state: null,
+        toolsAllow,
+        scheduledToolPolicy: { version: 1, mode: "trusted" },
+      }),
+    ).resolves.toEqual({ kind: "evaluated", fire: false });
+  });
+
   it("prefers a valid returned value and injects trigger state", async () => {
     const runHeadless = vi.fn(async (_params: HeadlessParams) =>
       completed({

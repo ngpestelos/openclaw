@@ -8,6 +8,14 @@ import type {
   CronToolsAllowCaptureRef,
 } from "../agents/tools/cron-tool.types.js";
 
+const CODEX_SCHEDULED_TOOL_NAME_BY_ALIAS = new Map([
+  ["gateway_exec", "exec"],
+  ["node_exec", "exec"],
+  ["sandbox_exec", "exec"],
+  ["gateway_process", "process"],
+  ["sandbox_process", "process"],
+]);
+
 export {
   buildCodexUserMcpServersThreadConfigPatch,
   buildCodexUserMcpServersThreadConfigPatchForRuntime,
@@ -35,7 +43,11 @@ export async function captureFinalCodexCronCreatorToolAllowlist(
   captureRef: CronToolsAllowCaptureRef,
   tools: readonly AnyAgentTool[],
 ) {
+  const scheduledTools = tools.map((tool) => {
+    const name = CODEX_SCHEDULED_TOOL_NAME_BY_ALIAS.get(tool.name) ?? tool.name;
+    return name === tool.name ? tool : { ...tool, name };
+  });
   const [{ captureFinalEffectiveCronCreatorToolAllowlist: capture }, { getPluginToolMeta }] =
     await Promise.all([import("../agents/tools/cron-tool.js"), import("../plugins/tools.js")]);
-  return capture(target, captureRef, tools, (tool) => getPluginToolMeta(tool));
+  return capture(target, captureRef, scheduledTools, (tool) => getPluginToolMeta(tool));
 }
