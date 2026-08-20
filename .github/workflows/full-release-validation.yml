@@ -169,8 +169,11 @@ jobs:
     name: Resolve target ref
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: write
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
+      child_ref: ${{ steps.pin_child_ref.outputs.ref }}
     steps:
       - name: Checkout trusted workflow helper
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -192,6 +195,33 @@ jobs:
             --ref "$TARGET_REF" \
             --expected-sha "$EXPECTED_SHA" \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Pin child workflow ref
+        id: pin_child_ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARENT_WORKFLOW_REF: ${{ github.ref_name }}
+          PARENT_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          child_ref="$PARENT_WORKFLOW_REF"
+          if [[ "$PARENT_WORKFLOW_REF" == "main" ]]; then
+            # The parent keeps its original SHA when main advances; children need a branch or tag.
+            child_ref="release-ci/${PARENT_WORKFLOW_SHA:0:12}-${GITHUB_RUN_ID}"
+            set +e
+            create_output="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/heads/${child_ref}" -f sha="$PARENT_WORKFLOW_SHA" 2>&1)"
+            create_status=$?
+            set -e
+            [[ "$create_status" -eq 0 ]] || echo "$create_output" >&2
+          fi
+          echo "ref=${child_ref}" >> "$GITHUB_OUTPUT"
+          encoded_ref="$(jq -rn --arg value "$child_ref" '$value | @uri')"
+          pinned_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${encoded_ref}" --jq .sha)"
+          if [[ "$pinned_sha" != "$PARENT_WORKFLOW_SHA" ]]; then
+            echo "::error::Child workflow ref ${child_ref} resolved to ${pinned_sha}, expected ${PARENT_WORKFLOW_SHA}." >&2
+            exit 1
+          fi
 
       - name: Checkout target package manifest
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -567,7 +597,7 @@ jobs:
           TARGET_REF: ${{ inputs.ref }}
           TARGET_CONTEXT_REF: ${{ inputs.target_context_ref }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
           FAIL_FAST: ${{ inputs.fail_fast }}
         run: &full_release_child_dispatch |
@@ -1097,7 +1127,7 @@ jobs:
           CHILD_WORKFLOW_KIND: plugin-prerelease
           TARGET_REF: ${{ inputs.ref }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
           CANDIDATE_ARTIFACT_JSON: ${{ needs.prepare_release_candidate.outputs.candidate_artifact_json }}
           PLUGIN_PRERELEASE_NODE_EXCLUDE_PATTERNS_JSON: ${{ inputs.plugin_prerelease_node_exclude_patterns_json }}
@@ -1125,7 +1155,7 @@ jobs:
           TARGET_REF: ${{ inputs.ref }}
           TARGET_CONTEXT_REF: ${{ inputs.target_context_ref }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
           PROVIDER: ${{ inputs.provider }}
           MODE: ${{ inputs.mode }}
@@ -1161,7 +1191,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CHILD_WORKFLOW_KIND: npm-telegram
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
           PACKAGE_SPEC: ${{ inputs.npm_telegram_package_spec || inputs.release_package_spec }}
@@ -1192,7 +1222,7 @@ jobs:
           CHILD_WORKFLOW_KIND: performance
           RELEASE_PROFILE: ${{ inputs.release_profile }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
         run: *full_release_child_dispatch
   summary:
@@ -1212,6 +1242,9 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: write
     steps:
       - name: Verify child workflow results
         env:
@@ -1241,7 +1274,7 @@ jobs:
           EVIDENCE_MANIFEST: ${{ needs.evidence_reuse.outputs.evidence_manifest }}
           RERUN_GROUP: ${{ inputs.rerun_group }}
           TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}
-          CHILD_WORKFLOW_REF: ${{ github.ref_name }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref || github.ref_name }}
           PARENT_WORKFLOW_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -1904,3 +1937,25 @@ jobs:
           path: ${{ runner.temp }}/full-release-validation
           if-no-files-found: error
           overwrite: true
+
+      - name: Remove parent-owned child workflow ref
+        if: ${{ always() && github.ref_name == 'main' && needs.resolve_target.outputs.child_ref != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}
+          PARENT_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          expected_prefix="release-ci/${PARENT_WORKFLOW_SHA:0:12}-"
+          if [[ "$CHILD_WORKFLOW_REF" != "$expected_prefix"[0-9]* ]]; then
+            echo "::error::Refusing to delete unexpected child workflow ref ${CHILD_WORKFLOW_REF}." >&2
+            exit 1
+          fi
+          encoded_branch="$(jq -rn --arg value "$CHILD_WORKFLOW_REF" '$value | @uri')"
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${encoded_branch}" --jq .sha)"
+          if [[ "$current_sha" != "$PARENT_WORKFLOW_SHA" ]]; then
+            echo "::error::Refusing to delete child workflow ref ${CHILD_WORKFLOW_REF} at unexpected SHA ${current_sha}." >&2
+            exit 1
+          fi
+          encoded_ref="$(jq -rn --arg value "heads/${CHILD_WORKFLOW_REF}" '$value | @uri')"
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/${encoded_ref}"

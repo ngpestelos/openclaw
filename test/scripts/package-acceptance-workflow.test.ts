@@ -2130,7 +2130,29 @@ describe("package acceptance workflow", () => {
     ).run;
 
     expect(workflow).toContain("TARGET_SHA: ${{ needs.resolve_target.outputs.sha }}");
-    expect(workflow).toContain("CHILD_WORKFLOW_REF: ${{ github.ref_name }}");
+    const resolveJob = workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, "resolve_target");
+    const pinStep = workflowStep(resolveJob, "Pin child workflow ref");
+    expect(resolveJob.permissions).toEqual({ contents: "write" });
+    expect(pinStep.run).toContain(
+      'child_ref="release-ci/${PARENT_WORKFLOW_SHA:0:12}-${GITHUB_RUN_ID}"',
+    );
+    expect(pinStep.run).toContain('-f sha="$PARENT_WORKFLOW_SHA"');
+    for (const child of FULL_RELEASE_CHILD_DISPATCHES) {
+      const job = workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, child.jobName);
+      expect(workflowStep(job, child.stepName).env?.CHILD_WORKFLOW_REF).toBe(
+        "${{ needs.resolve_target.outputs.child_ref }}",
+      );
+    }
+    const cleanupStep = workflowStep(
+      workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, "summary"),
+      "Remove parent-owned child workflow ref",
+    );
+    expect(cleanupStep.if).toContain("always()");
+    expectTextToIncludeAll(cleanupStep.run, [
+      'current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${encoded_branch}" --jq .sha)"',
+      '"$current_sha" != "$PARENT_WORKFLOW_SHA"',
+      'gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/${encoded_ref}"',
+    ]);
     expect(workflow).toContain("PARENT_WORKFLOW_SHA: ${{ github.sha }}");
     expect(workflow).toContain("release_package_spec:");
     expect(workflow).toContain('args+=(-f release_package_spec="$RELEASE_PACKAGE_SPEC")');
@@ -2175,9 +2197,6 @@ describe("package acceptance workflow", () => {
     expect(workflow).toContain(
       "child run used workflow SHA ${head_sha}, expected parent workflow SHA ${PARENT_WORKFLOW_SHA}",
     );
-    expect(workflow).toContain(
-      "Use the SHA-pinned release helper when a moving branch cannot stay fixed",
-    );
     expect(workflow).toContain("| Child | Result | Minutes | Head SHA | Run |");
     expect(releaseChecksWorkflow).toContain("refs/heads/release-ci/[0-9a-f]{12}-[0-9]+");
     expect(releaseChecksWorkflow).toContain(
@@ -2186,6 +2205,62 @@ describe("package acceptance workflow", () => {
     expect(releaseChecksWorkflow).toContain(
       "package_spec: ${{ needs.resolve_target.outputs.package_acceptance_package_spec || needs.resolve_target.outputs.release_package_spec || 'openclaw@beta' }}",
     );
+  });
+
+  it("pins main child dispatches to the parent SHA before main can advance", () => {
+    const step = workflowStep(
+      workflowJob(FULL_RELEASE_VALIDATION_WORKFLOW, "resolve_target"),
+      "Pin child workflow ref",
+    );
+    const workdir = tempDirs.make("full-release-pin-child-ref-");
+    const ghPath = resolve(workdir, "gh");
+    const outputPath = resolve(workdir, "github-output");
+    const callsPath = resolve(workdir, "calls.jsonl");
+    const parentSha = "a".repeat(40);
+    writeFileSync(
+      ghPath,
+      `#!${process.execPath}
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.MOCK_GH_CALLS, JSON.stringify(args) + "\\n");
+if (args.includes("--jq")) console.log(process.env.PARENT_WORKFLOW_SHA);
+`,
+    );
+    chmodSync(ghPath, 0o755);
+
+    const result = spawnSync("bash", ["-c", step.run ?? ""], {
+      encoding: "utf8",
+      env: {
+        GH_TOKEN: "fixture-token",
+        GITHUB_OUTPUT: outputPath,
+        GITHUB_REPOSITORY: "openclaw/openclaw",
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_RUN_ID: "32397890557",
+        MOCK_GH_CALLS: callsPath,
+        PARENT_WORKFLOW_REF: "main",
+        PARENT_WORKFLOW_SHA: parentSha,
+        PATH: `${workdir}:${process.env.PATH}`,
+      },
+    });
+
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    const pinnedRef = `release-ci/${parentSha.slice(0, 12)}-32397890557`;
+    expect(readFileSync(outputPath, "utf8")).toBe(`ref=${pinnedRef}\n`);
+    const calls = readFileSync(callsPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[]);
+    expect(calls[0]).toEqual([
+      "api",
+      "-X",
+      "POST",
+      "repos/openclaw/openclaw/git/refs",
+      "-f",
+      `ref=refs/heads/${pinnedRef}`,
+      "-f",
+      `sha=${parentSha}`,
+    ]);
+    expect(calls[1]?.join(" ")).toContain(`/commits/release-ci%2F${parentSha.slice(0, 12)}-`);
   });
 
   it("keeps performance evidence advisory for beta releases", () => {
@@ -4988,7 +5063,7 @@ describe("package artifact reuse", () => {
         type: "boolean",
       },
     });
-    expect(workflow).toContain("CHILD_WORKFLOW_REF: ${{ github.ref_name }}");
+    expect(workflow).toContain("CHILD_WORKFLOW_REF: ${{ needs.resolve_target.outputs.child_ref }}");
     expect(workflow).toContain('gh workflow run "$workflow" --ref "$CHILD_WORKFLOW_REF" "$@" 2>&1');
     expect(targetManifestCheckout.with).toMatchObject({
       ref: "${{ steps.resolve.outputs.sha }}",
@@ -5050,7 +5125,7 @@ describe("package artifact reuse", () => {
     );
     expect(dispatchStep.env).toEqual({
       CHILD_WORKFLOW_KIND: "npm-telegram",
-      CHILD_WORKFLOW_REF: "${{ github.ref_name }}",
+      CHILD_WORKFLOW_REF: "${{ needs.resolve_target.outputs.child_ref }}",
       FAIL_FAST: "${{ inputs.fail_fast }}",
       GH_TOKEN: "${{ github.token }}",
       PACKAGE_SPEC: "${{ inputs.npm_telegram_package_spec || inputs.release_package_spec }}",
