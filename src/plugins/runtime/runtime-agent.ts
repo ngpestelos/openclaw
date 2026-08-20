@@ -29,7 +29,7 @@ import {
   getSessionEntry,
   listSessionEntries,
   patchSessionEntry,
-  updateSessionStoreEntry,
+  updatePluginSessionStoreEntry,
   upsertSessionEntry,
 } from "../../plugin-sdk/session-store-runtime.js";
 import {
@@ -523,7 +523,7 @@ export function createRuntimeAgent(): PluginRuntime["agent"] {
     patchSessionEntry,
     upsertSessionEntry,
     runWithWorkAdmission: runWithSessionWorkAdmission,
-    updateSessionStoreEntry,
+    updateSessionStoreEntry: updatePluginSessionStoreEntry,
   }));
 
   return agentRuntime as PluginRuntime["agent"];

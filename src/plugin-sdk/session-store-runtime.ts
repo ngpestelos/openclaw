@@ -493,7 +493,7 @@ export function readAmbientTranscriptWatermark(
 }
 
 /** Updates an existing session entry by store path and session key. */
-export async function updateSessionStoreEntry(
+export async function updatePluginSessionStoreEntry(
   params: UpdateSessionStoreEntryParams,
 ): Promise<SessionEntry | null> {
   const entry = await updateSessionEntry(
@@ -514,6 +514,8 @@ export async function updateSessionStoreEntry(
   );
   return entry ? projectPluginSessionEntry(entry) : null;
 }
+
+export { updatePluginSessionStoreEntry as updateSessionStoreEntry };
 
 /** Replaces or creates one session entry by agent/session identity. */
 export async function upsertSessionEntry(params: UpsertSessionEntryParams): Promise<void> {

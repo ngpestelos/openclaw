@@ -1,6 +1,8 @@
 // Internal state and live registry view for the global hook runner.
 import { resolveGlobalSingleton } from "../shared/global-singleton.js";
+import { resolveTargetedPluginHookAvailability } from "./hook-registry-query.js";
 import type { GlobalHookRunnerRegistry } from "./hook-registry.types.js";
+import type { PluginHookName } from "./hook-types.js";
 import type { HookRunner } from "./hooks.js";
 import { isPluginRegistryRetired } from "./registry-lifecycle.js";
 import type {
@@ -157,4 +159,12 @@ export function createLiveHookRegistryFacade(
 export function getGlobalHookRunnerRegistry(): TrustedPolicyHookRunnerRegistry | null {
   const state = getHookRunnerGlobalState();
   return resolveHookRegistry(state) ? createLiveHookRegistryFacade(state) : null;
+}
+
+/** Inspect the request-scoped-or-root registry without exposing that registry to callers. */
+export function isGlobalPluginHookReady(pluginId: string, hookName: PluginHookName): boolean {
+  return (
+    resolveTargetedPluginHookAvailability(getGlobalHookRunnerRegistry(), hookName, pluginId) ===
+    "ready"
+  );
 }

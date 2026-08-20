@@ -10,12 +10,11 @@
  */
 
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { resolveTargetedPluginHookAvailability } from "./hook-registry-query.js";
 import type { GlobalHookRunnerRegistry } from "./hook-registry.types.js";
 import {
   createLiveHookRegistryFacade,
-  getGlobalHookRunnerRegistry,
   getHookRunnerGlobalState,
+  isGlobalPluginHookReady,
 } from "./hook-runner-global-state.js";
 import type {
   PluginHookGatewayContext,
@@ -86,11 +85,7 @@ export function hasGlobalHooks<K extends PluginHookName>(
 
 /** True only when targeted dispatch can execute this exact loaded plugin hook. */
 export function hasGlobalPluginHook(pluginId: string, hookName: PluginHookName): boolean {
-  return Boolean(
-    getGlobalHookRunner() &&
-    resolveTargetedPluginHookAvailability(getGlobalHookRunnerRegistry(), hookName, pluginId) ===
-      "ready",
-  );
+  return Boolean(getGlobalHookRunner() && isGlobalPluginHookReady(pluginId, hookName));
 }
 
 export async function runGlobalGatewayStopSafely(params: {
